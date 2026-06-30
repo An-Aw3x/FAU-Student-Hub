@@ -1,122 +1,189 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useMemo } from 'react';
+import Navbar       from './components/Navbar';
+import LeftSidebar  from './components/LeftSidebar';
+import RightSidebar from './components/RightSidebar';
+import PostCard     from './components/PostCard';
+import CreatePost   from './components/CreatePost';
+import { MOCK_POSTS, CURRENT_USER, LOGGED_IN_USER } from './data/mockData';
+import './index.css';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  // ── Auth state ──────────────────────────────────────────
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const currentUser = isLoggedIn ? LOGGED_IN_USER : CURRENT_USER;
+
+  // ── UI state ────────────────────────────────────────────
+  const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
+  const [aiSummaryEnabled,  setAiSummaryEnabled]  = useState(false);
+  const [activeTag,         setActiveTag]         = useState('all');
+  const [searchQuery,       setSearchQuery]       = useState('');
+  const [loginPromptVisible, setLoginPromptVisible] = useState(false);
+
+  // ── Filtered feed ───────────────────────────────────────
+  const filteredPosts = useMemo(() => {
+    let posts = MOCK_POSTS;
+
+    // Tag filter
+    if (activeTag !== 'all') {
+      posts = posts.filter(p => p.tags.includes(activeTag));
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      posts = posts.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        p.body.toLowerCase().includes(q)  ||
+        p.tags.some(t => t.includes(q))   ||
+        p.user.name.toLowerCase().includes(q)
+      );
+    }
+
+    // Pinned posts first
+    return [...posts].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  }, [activeTag, searchQuery]);
+
+  const handleTagChange = (tagId) => {
+    setActiveTag(tagId);
+    setMobileMenuOpen(false); // close sidebar on mobile after tag pick
+  };
+
+  const handleAuthToggle = () => {
+    setIsLoggedIn(p => !p);
+    setLoginPromptVisible(false);
+  };
+
+  const handleLoginPrompt = () => {
+    setLoginPromptVisible(true);
+    setTimeout(() => setLoginPromptVisible(false), 4000);
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <div className="min-h-screen" style={{ background: 'var(--color-surface)' }}>
+
+      {/* ── Navbar (fixed top) ──────────────────────────── */}
+      <Navbar
+        isLoggedIn={isLoggedIn}
+        onAuthToggle={handleAuthToggle}
+        onMenuToggle={() => setMobileMenuOpen(p => !p)}
+        mobileMenuOpen={mobileMenuOpen}
+        onSearch={setSearchQuery}
+        searchQuery={searchQuery}
+      />
+
+      {/* ── Mobile Sidebar Backdrop ─────────────────────── */}
+      {mobileMenuOpen && (
+        <div
+          id="sidebar-backdrop"
+          className="fixed inset-0 z-30 lg:hidden"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Login Prompt Toast ───────────────────────────── */}
+      {loginPromptVisible && (
+        <div
+          id="login-toast"
+          role="alert"
+          aria-live="polite"
+          className="fixed top-20 left-1/2 z-50 animate-slide-down px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl"
+          style={{
+            transform: 'translateX(-50%)',
+            background: 'var(--color-surface-3)',
+            border: '1px solid var(--color-owl-gold)',
+            color: 'var(--color-owl-gold-light)',
+          }}
         >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          🔐 Please log in to post or comment — click <strong>Sign Up</strong> to demo!
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* ── Page Layout ─────────────────────────────────── */}
+      <div className="pt-16 max-w-screen-xl mx-auto flex">
+
+        {/* Left Sidebar */}
+        <LeftSidebar
+          activeTag={activeTag}
+          onTagChange={handleTagChange}
+          aiSummaryEnabled={aiSummaryEnabled}
+          onAiToggle={() => setAiSummaryEnabled(p => !p)}
+          mobileOpen={mobileMenuOpen}
+        />
+
+        {/* ── Main Feed ─────────────────────────────────── */}
+        <main
+          id="main-feed"
+          className="flex-1 min-w-0 px-4 py-6 lg:px-6"
+          aria-label="Community feed"
+        >
+          {/* Feed Header */}
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+            <div>
+              <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text-primary)' }}>
+                {activeTag === 'all' ? '🏠 Community Forum' : `#${activeTag}`}
+              </h1>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
+                {searchQuery ? ` matching "${searchQuery}"` : ''}
+              </p>
+            </div>
+            {aiSummaryEnabled && (
+              <span
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse-glow"
+                style={{
+                  background: 'rgba(212,175,55,0.12)',
+                  border: '1px solid rgba(212,175,55,0.3)',
+                  color: 'var(--color-owl-gold)',
+                }}
+              >
+                ✨ AI Summaries Active
+              </span>
+            )}
+          </div>
+
+          {/* Create Post */}
+          <div className="mb-5">
+            <CreatePost
+              isLoggedIn={isLoggedIn}
+              currentUserAvatar={currentUser.avatar}
+              onLoginPrompt={handleLoginPrompt}
+            />
+          </div>
+
+          {/* Post Feed */}
+          {filteredPosts.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {filteredPosts.map(post => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  aiSummaryEnabled={aiSummaryEnabled}
+                />
+              ))}
+            </div>
+          ) : (
+            /* Empty state */
+            <div className="py-20 text-center animate-fade-in">
+              <div className="text-5xl mb-4">🦉</div>
+              <h2 className="font-display font-bold text-xl mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                No posts found
+              </h2>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                {searchQuery
+                  ? `No results for "${searchQuery}". Try a different search.`
+                  : 'Be the first to post in this topic!'}
+              </p>
+            </div>
+          )}
+        </main>
+
+        {/* Right Sidebar */}
+        <div className="py-6 pr-4 hidden xl:block">
+          <RightSidebar />
+        </div>
+      </div>
+    </div>
+  );
 }
-
-export default App
