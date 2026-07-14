@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Navbar       from './components/Navbar';
 import LeftSidebar  from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
@@ -19,29 +19,50 @@ export default function App() {
   const [searchQuery,       setSearchQuery]       = useState('');
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
 
+  // ── Posts state (live from DB) ──────────────────────────
+  const [dbPosts, setDbPosts] = useState([]);
+
+  // Fetch posts from the backend on mount
+  useEffect(() => {
+    fetch('/api/posts')
+      .then(res => res.json())
+      .then(posts => setDbPosts(posts))
+      .catch(err => console.warn('Backend unavailable, using mock data only:', err));
+  }, []);
+
+  // Callback for CreatePost — prepend new post to the live feed
+  const handlePostCreated = useCallback((newPost) => {
+    setDbPosts(prev => [newPost, ...prev]);
+  }, []);
+
+  // Merge DB posts on top, then mock posts as seed content
+  const allPosts = useMemo(() => {
+    return [...dbPosts, ...MOCK_POSTS];
+  }, [dbPosts]);
+
   // ── Filtered feed ───────────────────────────────────────
   const filteredPosts = useMemo(() => {
-    let posts = MOCK_POSTS;
+    let posts = allPosts;
 
     // Tag filter
     if (activeTag !== 'all') {
-      posts = posts.filter(p => p.tags.includes(activeTag));
+      posts = posts.filter(p => (p.tags || []).includes(activeTag));
     }
 
     // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       posts = posts.filter(p =>
-        p.title.toLowerCase().includes(q) ||
-        p.body.toLowerCase().includes(q)  ||
-        p.tags.some(t => t.includes(q))   ||
-        p.user.name.toLowerCase().includes(q)
+        (p.title || '').toLowerCase().includes(q) ||
+        (p.body || p.content || '').toLowerCase().includes(q) ||
+        (p.tags || []).some(t => t.includes(q)) ||
+        (p.user?.name || p.username || '').toLowerCase().includes(q)
       );
     }
 
     // Pinned posts first
     return [...posts].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
-  }, [activeTag, searchQuery]);
+  }, [allPosts, activeTag, searchQuery]);
 
   const handleTagChange = (tagId) => {
     setActiveTag(tagId);
@@ -147,8 +168,10 @@ export default function App() {
           <div className="mb-5">
             <CreatePost
               isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
               currentUserAvatar={currentUser.avatar}
               onLoginPrompt={handleLoginPrompt}
+              onPostCreated={handlePostCreated}
             />
           </div>
 
