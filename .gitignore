@@ -1,0 +1,6 @@
+node_modules/
+FAUForum/node_modules/
+backend/node_modules/
+backend/fau_forum.db
+.env
+.env.local
