@@ -36,7 +36,7 @@ const XIcon = () => (
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
+export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Hot 🔥');
@@ -163,6 +163,17 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
             )}
           </div>
         </div>
+
+        {/* Theme Toggle */}
+        <label className="toggle-switch">
+          <input
+            type="checkbox"
+            checked={theme === "dark"}
+            onChange={onThemeToggle}
+            aria-label="ToggleD dark mode"
+          />
+          <span className="toggle-slider"></span>
+        </label>
 
         {/* Auth Section */}
         <div className="flex items-center gap-2 shrink-0">

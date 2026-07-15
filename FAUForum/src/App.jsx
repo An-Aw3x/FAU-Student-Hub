@@ -18,6 +18,7 @@ export default function App() {
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
+  const [theme, setTheme] = useState("light");
 
   // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
@@ -74,16 +75,24 @@ export default function App() {
     setLoginPromptVisible(false);
   };
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
   const handleLoginPrompt = () => {
     setLoginPromptVisible(true);
     setTimeout(() => setLoginPromptVisible(false), 4000);
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-surface)' }}>
+    <div
+      className={`min-h-screen ${theme}`}
+      style={{ backgroundColor: 'var(--color-surface)' }}>
 
       {/* ── Navbar (fixed top) ──────────────────────────── */}
       <Navbar
+        theme={theme}
+        onThemeToggle={toggleTheme}
         isLoggedIn={isLoggedIn}
         onAuthToggle={handleAuthToggle}
         onMenuToggle={() => setMobileMenuOpen(p => !p)}

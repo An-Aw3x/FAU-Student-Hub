@@ -2,23 +2,36 @@
 
 /* ── Custom Design Tokens ─────────────────────────────────── */
 @theme {
-  --color-owl-blue:        #003F8A;
-  --color-owl-blue-light:  #1255B3;
-  --color-owl-gold:        #D4AF37;
-  --color-owl-gold-light:  #F0CC5A;
-  --color-surface:         #0F1117;
-  --color-surface-2:       #161B26;
-  --color-surface-3:       #1E2535;
-  --color-surface-4:       #252D40;
-  --color-border:          #2A3348;
-  --color-text-primary:    #F0F4FF;
-  --color-text-secondary:  #8B95B0;
-  --color-text-muted:      #55617A;
-  --color-upvote:          #4ADE80;
-  --color-downvote:        #F87171;
-  --color-tag-bg:          #1A2540;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Outfit', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* ===== Light Theme (default) ===== */
+
+  --color-owl-blue: #003F8A;
+  --color-owl-blue-light: #1255B3;
+
+  --color-owl-red: #C8102E;
+
+  --color-surface: #F7F9FC;
+  --color-surface-2: #FFFFFF;
+  --color-surface-3: #EEF3FA;
+  --color-surface-4: #E2EAF5;
+
+  --color-border: #D6DEEA;
+
+  --color-text-primary: #0F2447;
+  --color-text-secondary: #51627F;
+  --color-text-muted: #7C8DAA;
+}
+
+.dark {
+  --color-surface: #0F1117;
+  --color-surface-2: #161B26;
+  --color-surface-3: #1E2535;
+  --color-surface-4: #252D40;
+
+  --color-border: #2A3348;
+
+  --color-text-primary: #F0F4FF;
+  --color-text-secondary: #8B95B0;
+  --color-text-muted: #55617A;
 }
 
 /* ── Base Reset & Global ──────────────────────────────────── */
@@ -44,7 +57,22 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-owl-blue-light); }
 
+/* ── Navbar ───────────────────────────────────────────── */
+.navbar-light {
+  background: #003366;
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar-dark {
+  background: rgba(30, 37, 53, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(42, 51, 72, 0.8);
+}
+
 /* ── Utility Classes ──────────────────────────────────────── */
+/* acel: might remove the glass filter and just have a solid color for either light or dark mode */
 .glass {
   background: rgba(30, 37, 53, 0.65);
   backdrop-filter: blur(12px);
