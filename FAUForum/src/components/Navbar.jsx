@@ -37,6 +37,7 @@ const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
 export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
+  console.log(theme);
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Hot 🔥');
@@ -57,8 +58,9 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 glass"
-      style={{ borderBottom: '1px solid rgba(42,51,72,0.8)' }}
+      className={`fixed top-0 left-0 right-0 z-50 ${
+        theme === "dark" ? "navbar-dark" : "navbar-light"
+      }`}
     >
       <div className="max-w-screen-xl mx-auto px-4 h-16 flex items-center gap-3">
 
@@ -188,7 +190,7 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
               >
                 <BellIcon />
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
-                  style={{ background: 'var(--color-owl-gold)' }} />
+                  style={{ background: 'var(--color-accent)' }} />
               </button>
 
               {/* User Avatar */}

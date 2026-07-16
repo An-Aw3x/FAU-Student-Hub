@@ -122,8 +122,8 @@ export default function App() {
           style={{
             transform: 'translateX(-50%)',
             background: 'var(--color-surface-3)',
-            border: '1px solid var(--color-owl-gold)',
-            color: 'var(--color-owl-gold-light)',
+            border: '1px solid var(--color-accent)',
+            color: 'var(--color-accent-light)',
           }}
         >
           🔐 Please log in to post or comment — click <strong>Sign Up</strong> to demo!
@@ -165,7 +165,7 @@ export default function App() {
                 style={{
                   background: 'rgba(212,175,55,0.12)',
                   border: '1px solid rgba(212,175,55,0.3)',
-                  color: 'var(--color-owl-gold)',
+                  color: 'var(--color-accent)',
                 }}
               >
                 ✨ AI Summaries Active

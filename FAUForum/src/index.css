@@ -8,6 +8,8 @@
   --color-owl-blue-light: #1255B3;
 
   --color-owl-red: #C8102E;
+  --color-accent: #003F8A;
+  --color-accent-light: #F0CC5A;
 
   --color-surface: #F7F9FC;
   --color-surface-2: #FFFFFF;
@@ -26,6 +28,8 @@
   --color-surface-2: #161B26;
   --color-surface-3: #1E2535;
   --color-surface-4: #252D40;
+
+  --color-accent: #6FAEFF;
 
   --color-border: #2A3348;
 
@@ -65,20 +69,14 @@ body {
 }
 
 .navbar-dark {
-  background: rgba(30, 37, 53, 0.65);
+  background: #0e2035;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(42, 51, 72, 0.8);
+  border-bottom: 1px solid rgba(18, 19, 23, 0.8);
 }
 
 /* ── Utility Classes ──────────────────────────────────────── */
-/* acel: might remove the glass filter and just have a solid color for either light or dark mode */
-/*.glass {
-  background: rgba(30, 37, 53, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(42, 51, 72, 0.7);
-}*/
+/* acel: removed the glass filter and just have a solid color for either light or dark mode */
 
 .glow-blue {
   box-shadow: 0 0 20px rgba(18, 85, 179, 0.25);
@@ -199,7 +197,7 @@ body {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: linear-gradient(135deg, var(--color-owl-blue-light), var(--color-owl-gold));
+  background: linear-gradient(135deg, var(--color-owl-blue-light), var(--color-accent));
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
@@ -296,7 +294,7 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
 .avatar-ring {
   border: 2px solid transparent;
   background: linear-gradient(var(--color-surface-2), var(--color-surface-2)) padding-box,
-              linear-gradient(135deg, var(--color-owl-blue-light), var(--color-owl-gold)) border-box;
+              linear-gradient(135deg, var(--color-owl-blue-light), var(--color-accent)) border-box;
 }
 
 /* ── Comment Section ──────────────────────────────────────── */
