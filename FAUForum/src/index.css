@@ -77,7 +77,16 @@ body {
 }
 
 /* ── Utility Classes ──────────────────────────────────────── */
-/* acel: removed the glass filter and just have a solid color for either light or dark mode */
+
+/* a nice red for pinned posts */
+.pinned-label {
+  color: var(--color-owl-red);
+  font-weight: 700;
+}
+
+.dark .pinned-label {
+  color: #f05252;
+}
 
 .glow-blue {
   box-shadow: 0 0 20px rgba(18, 85, 179, 0.25);
