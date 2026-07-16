@@ -161,10 +161,10 @@ export default function App() {
             </div>
             {aiSummaryEnabled && (
               <span
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse-glow"
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
                 style={{
-                  background: 'rgba(212,175,55,0.12)',
-                  border: '1px solid rgba(212,175,55,0.3)',
+                  background: 'rgba(153, 200, 238, 0.12)',
+                  border: '1px solid rgba(115, 114, 201, 0.14)',
                   color: 'var(--color-accent)',
                 }}
               >

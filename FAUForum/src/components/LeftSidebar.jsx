@@ -50,8 +50,8 @@ export default function LeftSidebar({ activeTag, onTagChange, aiSummaryEnabled, 
       <div
         className="rounded-2xl p-4"
         style={{
-          background: 'linear-gradient(135deg, rgba(0,63,138,0.25), rgba(212,175,55,0.1))',
-          border: '1px solid rgba(212,175,55,0.25)',
+          background: 'linear-gradient(135deg, rgba(0,63,138,0.25), rgba(212, 55, 55, 0.1))',
+          border: '1px solid rgba(250, 250, 250, 0.51)',
         }}
       >
         <div className="flex items-start justify-between gap-3">
@@ -79,7 +79,9 @@ export default function LeftSidebar({ activeTag, onTagChange, aiSummaryEnabled, 
         {aiSummaryEnabled && (
           <div
             className="mt-3 text-xs rounded-xl px-3 py-2 animate-fade-in"
-            style={{ background: 'rgba(212,175,55,0.08)', color: 'var(--color-owl-gold-light)', border: '1px solid rgba(212,175,55,0.15)' }}
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,63,138,0.25), rgba(212, 55, 55, 0.1))',
+            }}
           >
             ✨ AI summaries are <strong>ON</strong> — look for the 🦉 badge on posts!
           </div>
