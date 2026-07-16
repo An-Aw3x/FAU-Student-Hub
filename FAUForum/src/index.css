@@ -73,12 +73,12 @@ body {
 
 /* ── Utility Classes ──────────────────────────────────────── */
 /* acel: might remove the glass filter and just have a solid color for either light or dark mode */
-.glass {
+/*.glass {
   background: rgba(30, 37, 53, 0.65);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(42, 51, 72, 0.7);
-}
+}*/
 
 .glow-blue {
   box-shadow: 0 0 20px rgba(18, 85, 179, 0.25);
