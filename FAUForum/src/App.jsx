@@ -165,10 +165,10 @@ export default function App() {
                 style={{
                   background: 'rgba(153, 200, 238, 0.12)',
                   border: '1px solid rgba(115, 114, 201, 0.14)',
-                  color: 'var(--color-accent)',
+                  color: 'var(--color-accent-light)',
                 }}
               >
-                ✨ AI Summaries Active
+                ✨ AI Features Enabled
               </span>
             )}
           </div>
