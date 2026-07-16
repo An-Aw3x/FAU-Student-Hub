@@ -3,7 +3,7 @@ import { TAGS } from '../data/mockData';
 
 // ── Icons ──────────────────────────────────────────────────
 const SparkleIcon = () => (
-  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+  <svg width="14" height="14" fill="#f05252" viewBox="0 0 24 24">
     <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
   </svg>
 );
