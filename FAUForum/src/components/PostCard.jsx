@@ -114,7 +114,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           style={{
             background: 'linear-gradient(135deg, rgba(0,63,138,0.18), rgba(212,175,55,0.08))',
             border: '1px solid rgba(212,175,55,0.2)',
-            color: 'var(--color-owl-gold-light)',
+            color: 'var(--color-accent-light)',
           }}
         >
           {AI_SUMMARIES[post.id]}

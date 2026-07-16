@@ -9,7 +9,7 @@
 
   --color-owl-red: #C8102E;
   --color-accent: #003F8A;
-  --color-accent-light: #F0CC5A;
+  --color-accent-light: #003F8A;
 
   --color-surface: #F7F9FC;
   --color-surface-2: #FFFFFF;
@@ -30,6 +30,7 @@
   --color-surface-4: #252D40;
 
   --color-accent: #6FAEFF;
+  --color-accent-light:rgb(185, 207, 236);
 
   --color-border: #2A3348;
 
