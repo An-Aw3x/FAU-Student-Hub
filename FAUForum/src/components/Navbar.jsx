@@ -225,7 +225,7 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
                 id="login-btn"
                 onClick={onAuthToggle}
                 className="px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+                style={{ color: 'var(--color-text-login)', border: '1px solid var(--color-border)' }}
               >
                 Log In
               </button>
