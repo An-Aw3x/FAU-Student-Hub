@@ -75,13 +75,22 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
         </button>
 
         {/* OwlNet Logo */}
-        <a href="#" id="owlnet-logo" className="flex items-center gap-2 shrink-0 select-none">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg font-bold animate-pulse-glow"
-            style={{ background: 'linear-gradient(135deg, #003F8A, #D4AF37)' }}>
-            🦉
-          </div>
-          <span className="font-display font-800 text-xl tracking-tight hidden sm:block"
-            style={{ background: 'linear-gradient(135deg, #7EB3FF, #F0CC5A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none">
+          <img
+            src="/fau-owl-logo.png"
+            alt="FAU Logo"
+            className="w-8 h-8 object-contain"
+          />
+          <span
+            className="font-display font-800 text-xl tracking-tight hidden sm:inline-block"
+            style={{
+              background: "linear-gradient(135deg, #72abfc, #fd6b6b)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
             OwlNet
           </span>
           <span className="text-xs font-semibold hidden md:block px-2 py-0.5 rounded-full"
