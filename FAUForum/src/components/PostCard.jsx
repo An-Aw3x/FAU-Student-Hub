@@ -110,11 +110,9 @@ export default function PostCard({ post, aiSummaryEnabled }) {
       {/* ── AI Summary Banner ─────────────────────────────── */}
       {aiSummaryEnabled && AI_SUMMARIES[post.id] && (
         <div
-          className="rounded-xl px-4 py-2.5 mb-4 text-xs leading-relaxed animate-fade-in"
+          className="ai-summary-banner rounded-xl px-4 py-2.5 mb-4 text-xs leading-relaxed animate-fade-in"
           style={{
-            background: 'linear-gradient(135deg, rgba(0,63,138,0.18), rgba(212,175,55,0.08))',
-            border: '1px solid rgba(212,175,55,0.2)',
-            color: 'var(--color-accent-light)',
+            color: "var(--color-accent-light)",
           }}
         >
           {AI_SUMMARIES[post.id]}

@@ -241,6 +241,27 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+/* ── AI Summary Banner ────────────────────────────────────── */
+.ai-summary-banner {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 63, 138, 0.08),
+    rgba(18, 85, 179, 0.04)
+  );
+
+  border: 1px solid rgba(18, 85, 179, 0.18);
+}
+
+.dark .ai-summary-banner {
+  background: linear-gradient(
+    90deg,
+    rgba(18, 85, 179, 0.16),
+    rgba(15, 36, 71, 0.28)
+  );
+
+  border: 1px solid rgba(111, 174, 255, 0.18);
+}
+
 /* ── Sidebar Links ────────────────────────────────────────── */
 .sidebar-link {
   display: flex;
