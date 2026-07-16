@@ -51,14 +51,13 @@ export default function LeftSidebar({ activeTag, onTagChange, aiSummaryEnabled, 
         className="rounded-2xl p-4"
         style={{
           background: 'linear-gradient(135deg, rgba(0,63,138,0.25), rgba(212, 55, 55, 0.1))',
-          border: '1px solid rgba(250, 250, 250, 0.51)',
         }}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <SparkleIcon />
-              <span className="text-sm font-bold" style={{ color: 'var(--color-owl-gold)' }}>
+              <span className="text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
                 AI Thread Summary
               </span>
             </div>
@@ -80,6 +79,7 @@ export default function LeftSidebar({ activeTag, onTagChange, aiSummaryEnabled, 
           <div
             className="mt-3 text-xs rounded-xl px-3 py-2 animate-fade-in"
             style={{
+              color: 'var(--color-accent-light)',
               background: 'linear-gradient(135deg, rgba(0,63,138,0.25), rgba(212, 55, 55, 0.1))',
             }}
           >
