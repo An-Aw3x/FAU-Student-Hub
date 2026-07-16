@@ -285,8 +285,8 @@ body {
 }
 
 .sidebar-link.active {
-  background: rgba(0, 63, 138, 0.25);
-  color: #7EB3FF;
+  background: rgba(0, 62, 138, 0.057);
+  color: #3e86eb;
   border-color: rgba(18, 85, 179, 0.3);
 }
 
