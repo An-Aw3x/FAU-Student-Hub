@@ -96,7 +96,64 @@ app.post("/api/posts", (req, res) => {
     }
   );
 });
+// Edit/update a post
+app.put("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
+  const { title, content, tags } = req.body;
 
+  if (!title || !content) {
+    return res.status(400).json({ error: "Title and content are required." });
+  }
+
+  // If tags are sent, save them. If not, keep existing tags.
+  const tagsStr = Array.isArray(tags) ? tags.join(",") : null;
+
+  db.run(
+    `
+    UPDATE posts
+    SET title = ?, content = ?, tags = COALESCE(?, tags)
+    WHERE id = ?
+    `,
+    [title, content, tagsStr, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Post not found." });
+      }
+
+      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          ...row,
+          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+        });
+      });
+    }
+  );
+});
+
+// Delete a post
+app.delete("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.run("DELETE FROM posts WHERE id = ?", [id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Post not found." });
+    }
+
+    res.json({ message: "Post deleted successfully." });
+  });
+});
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
 });
