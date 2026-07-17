@@ -58,7 +58,7 @@ const formatCommentTime = (createdAt) => {
 };
 
 // ── Comment Section Component ───────────────────────────────
-export default function CommentSection({ postId }) {
+export default function CommentSection({ postId, onCommentCountChange }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [likedComments, setLikedComments] = useState({});
   const [newComment, setNewComment] = useState('');
@@ -66,18 +66,20 @@ export default function CommentSection({ postId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-
   useEffect(() => {
+    let isMounted = true;
+
     async function loadComments() {
       try {
         setLoading(true);
-        setError(" ")
+        setError('');
+        setComments([]);
 
-        const responst = await fetch(`http://localhost:3001/api/posts/${postId}/comments`);
-        if (!responst.ok) {
-          throw new Error("Could not load comments.");
+        const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`);
+        if (!response.ok) {
+          throw new Error('Could not load comments.');
         }
-        const data = await responst.json();
+        const data = await response.json();
 
         const formattedComments = [...data]
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -93,16 +95,29 @@ export default function CommentSection({ postId }) {
             likes: 0
           }));
 
-        setComments(formattedComments);
+        if (isMounted) {
+          setComments(formattedComments);
+          onCommentCountChange?.(formattedComments.length);
+        }
       } catch (err) {
-        setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+          setComments([]);
+          onCommentCountChange?.(0);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     loadComments();
-  }, [postId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [postId, onCommentCountChange]);
 
   const toggleLike = (commentId) => {
     setLikedComments(prev => ({ ...prev, [commentId]: !prev[commentId] }));
@@ -114,17 +129,17 @@ export default function CommentSection({ postId }) {
     const trimmedComment = newComment.trim();
     if (!trimmedComment) return;
     try {
-      setError(" ")
+      setError('');
       const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: trimmedComment, username: "Anonymous" }),
+        body: JSON.stringify({ content: trimmedComment, username: 'Anonymous' }),
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to post comment.");
+        throw new Error(errorData.error || 'Failed to post comment.');
       }
       const createdComment = await response.json();
 
@@ -139,8 +154,12 @@ export default function CommentSection({ postId }) {
         text: createdComment.content,
         likes: 0
       };
-      
-      setComments(prev => [formattedComment, ...prev]);
+
+      setComments(prev => {
+        const nextComments = [formattedComment, ...prev];
+        onCommentCountChange?.(nextComments.length);
+        return nextComments;
+      });
       setNewComment('');
     } catch (err) {
       setError(err.message);
