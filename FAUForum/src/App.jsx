@@ -18,6 +18,7 @@ export default function App() {
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
+  const [theme, setTheme] = useState("light");
 
   // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
@@ -74,16 +75,24 @@ export default function App() {
     setLoginPromptVisible(false);
   };
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
   const handleLoginPrompt = () => {
     setLoginPromptVisible(true);
     setTimeout(() => setLoginPromptVisible(false), 4000);
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-surface)' }}>
+    <div
+      className={`min-h-screen ${theme}`}
+      style={{ backgroundColor: 'var(--color-surface)' }}>
 
       {/* ── Navbar (fixed top) ──────────────────────────── */}
       <Navbar
+        theme={theme}
+        onThemeToggle={toggleTheme}
         isLoggedIn={isLoggedIn}
         onAuthToggle={handleAuthToggle}
         onMenuToggle={() => setMobileMenuOpen(p => !p)}
@@ -113,8 +122,8 @@ export default function App() {
           style={{
             transform: 'translateX(-50%)',
             background: 'var(--color-surface-3)',
-            border: '1px solid var(--color-owl-gold)',
-            color: 'var(--color-owl-gold-light)',
+            border: '1px solid var(--color-accent)',
+            color: 'var(--color-accent-light)',
           }}
         >
           🔐 Please log in to post or comment — click <strong>Sign Up</strong> to demo!
@@ -152,14 +161,14 @@ export default function App() {
             </div>
             {aiSummaryEnabled && (
               <span
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse-glow"
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
                 style={{
-                  background: 'rgba(212,175,55,0.12)',
-                  border: '1px solid rgba(212,175,55,0.3)',
-                  color: 'var(--color-owl-gold)',
+                  background: 'rgba(153, 200, 238, 0.12)',
+                  border: '1px solid rgba(115, 114, 201, 0.14)',
+                  color: 'var(--color-accent-light)',
                 }}
               >
-                ✨ AI Summaries Active
+                ✨ AI Features Enabled
               </span>
             )}
           </div>
