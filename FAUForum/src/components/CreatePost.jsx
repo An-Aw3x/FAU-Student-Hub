@@ -3,33 +3,35 @@ import { TAGS } from '../data/mockData';
 
 const ImageIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-    <polyline points="21 15 16 10 5 21"/>
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
   </svg>
 );
 
 const LinkIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </svg>
 );
 
 const TagIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-    <line x1="7" y1="7" x2="7.01" y2="7"/>
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+    <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
 );
 
 const AVAILABLE_TAGS = TAGS.filter(t => t.id !== 'all');
 
-export default function CreatePost({ isLoggedIn, currentUserAvatar, onLoginPrompt }) {
+export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar, onLoginPrompt, onPostCreated }) {
   const [title, setTitle]           = useState('');
   const [body, setBody]             = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [expanded, setExpanded]     = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [submitted, setSubmitted]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState('');
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev =>
@@ -45,19 +47,46 @@ export default function CreatePost({ isLoggedIn, currentUserAvatar, onLoginPromp
     setExpanded(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    // In real app: POST to /api/posts
-    setSubmitted(true);
-    setTimeout(() => {
-      setTitle('');
-      setBody('');
-      setSelectedTags([]);
-      setExpanded(false);
-      setSubmitted(false);
-      setShowTagPicker(false);
-    }, 2000);
+    if (!title.trim() || submitting) return;
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          content: body.trim() || title.trim(),
+          username: currentUser?.name || 'Anonymous',
+          tags: selectedTags,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to create post');
+      }
+
+      const newPost = await res.json();
+      if (onPostCreated) onPostCreated(newPost);
+
+      setSubmitted(true);
+      setTimeout(() => {
+        setTitle('');
+        setBody('');
+        setSelectedTags([]);
+        setExpanded(false);
+        setSubmitted(false);
+        setShowTagPicker(false);
+      }, 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -77,10 +106,10 @@ export default function CreatePost({ isLoggedIn, currentUserAvatar, onLoginPromp
         <div className="py-6 text-center animate-fade-in">
           <div className="text-3xl mb-2">🎉</div>
           <p className="font-semibold" style={{ color: 'var(--color-owl-gold)' }}>
-            Post submitted! (mock — no backend yet)
+            Post submitted successfully!
           </p>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Your post will appear in the feed once the API is connected.
+            Your post is now live in the feed.
           </p>
         </div>
       ) : (
@@ -188,13 +217,16 @@ export default function CreatePost({ isLoggedIn, currentUserAvatar, onLoginPromp
                     <button
                       type="submit"
                       id="submit-post-btn"
-                      disabled={!title.trim()}
+                      disabled={!title.trim() || submitting}
                       className="px-5 py-1.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95"
                       style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
                     >
-                      Post
+                      {submitting ? 'Posting…' : 'Post'}
                     </button>
                   </div>
+                  {error && (
+                    <p className="text-xs mt-2" style={{ color: '#F87171' }}>{error}</p>
+                  )}
                 </div>
               )}
             </div>

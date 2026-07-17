@@ -36,7 +36,8 @@ const XIcon = () => (
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
+export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
+  console.log(theme);
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Hot 🔥');
@@ -57,8 +58,9 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 glass"
-      style={{ borderBottom: '1px solid rgba(42,51,72,0.8)' }}
+      className={`fixed top-0 left-0 right-0 z-50 ${
+        theme === "dark" ? "navbar-dark" : "navbar-light"
+      }`}
     >
       <div className="max-w-screen-xl mx-auto px-4 h-16 flex items-center gap-3">
 
@@ -73,13 +75,22 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
         </button>
 
         {/* OwlNet Logo */}
-        <a href="#" id="owlnet-logo" className="flex items-center gap-2 shrink-0 select-none">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg font-bold animate-pulse-glow"
-            style={{ background: 'linear-gradient(135deg, #003F8A, #D4AF37)' }}>
-            🦉
-          </div>
-          <span className="font-display font-800 text-xl tracking-tight hidden sm:block"
-            style={{ background: 'linear-gradient(135deg, #7EB3FF, #F0CC5A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none">
+          <img
+            src="/fau-owl-logo.png"
+            alt="FAU Logo"
+            className="w-8 h-8 object-contain"
+          />
+          <span
+            className="font-display font-800 text-xl tracking-tight hidden sm:inline-block"
+            style={{
+              background: "linear-gradient(135deg, #72abfc, #fd6b6b)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
             OwlNet
           </span>
           <span className="text-xs font-semibold hidden md:block px-2 py-0.5 rounded-full"
@@ -164,6 +175,17 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
           </div>
         </div>
 
+        {/* Theme Toggle */}
+        <label className="toggle-switch">
+          <input
+            type="checkbox"
+            checked={theme === "dark"}
+            onChange={onThemeToggle}
+            aria-label="ToggleD dark mode"
+          />
+          <span className="toggle-slider"></span>
+        </label>
+
         {/* Auth Section */}
         <div className="flex items-center gap-2 shrink-0">
           {isLoggedIn ? (
@@ -177,7 +199,7 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
               >
                 <BellIcon />
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
-                  style={{ background: 'var(--color-owl-gold)' }} />
+                  style={{ background: 'var(--color-accent)' }} />
               </button>
 
               {/* User Avatar */}
@@ -203,7 +225,7 @@ export default function Navbar({ isLoggedIn, onAuthToggle, onMenuToggle, mobileM
                 id="login-btn"
                 onClick={onAuthToggle}
                 className="px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+                style={{ color: 'var(--color-text-login)', border: '1px solid var(--color-border)' }}
               >
                 Log In
               </button>

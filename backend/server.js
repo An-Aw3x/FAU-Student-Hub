@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
@@ -8,20 +9,39 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// This creates/opens the SQLite database file
-const db = new sqlite3.Database("./fau_forum.db");
+// This creates/opens the SQLite database file (use __dirname for reliability)
+const dbPath = path.join(__dirname, "fau_forum.db");
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error("Failed to open database:", err.message);
+  } else {
+    console.log("Connected to SQLite database at", dbPath);
+  }
+});
 
-// Create the posts table if it does not exist yet
-db.run(`
-  CREATE TABLE IF NOT EXISTS posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    username TEXT DEFAULT 'Anonymous',
-    likes INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+// Serialize table creation and migration to prevent race conditions
+db.serialize(() => {
+  // Create the posts table if it does not exist yet
+  db.run(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      username TEXT DEFAULT 'Anonymous',
+      tags TEXT DEFAULT '',
+      likes INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migrate: add tags column if it doesn't exist (safe for existing DBs)
+  db.run(`ALTER TABLE posts ADD COLUMN tags TEXT DEFAULT ''`, (err) => {
+    // Ignore "duplicate column" errors — column already exists
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('Migration error:', err.message);
+    }
+  });
+});
 
 // Create the comment table if it does not exist yet
 db.run(` CREATE TABLE IF NOT EXISTS comments (
@@ -45,21 +65,30 @@ app.get("/api/posts", (req, res) => {
       return res.status(500).json({ error: err.message });
     }
 
-    res.json(rows);
+    // Convert tags from comma-separated string to array
+    const posts = rows.map((row) => ({
+      ...row,
+      tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+    }));
+
+    res.json(posts);
   });
 });
 
 // Create a new post
 app.post("/api/posts", (req, res) => {
-  const { title, content, username } = req.body;
+  const { title, content, username, tags } = req.body;
 
   if (!title || !content) {
     return res.status(400).json({ error: "Title and content are required." });
   }
 
+  // Store tags as comma-separated string
+  const tagsStr = Array.isArray(tags) ? tags.join(",") : "";
+
   db.run(
-    "INSERT INTO posts (title, content, username) VALUES (?, ?, ?)",
-    [title, content, username || "Anonymous"],
+    "INSERT INTO posts (title, content, username, tags) VALUES (?, ?, ?, ?)",
+    [title, content, username || "Anonymous", tagsStr],
     function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -70,7 +99,9 @@ app.post("/api/posts", (req, res) => {
         title,
         content,
         username: username || "Anonymous",
+        tags: Array.isArray(tags) ? tags : [],
         likes: 0,
+        created_at: new Date().toISOString(),
       });
     }
   );
