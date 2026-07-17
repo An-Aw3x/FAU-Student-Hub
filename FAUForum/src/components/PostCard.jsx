@@ -62,14 +62,21 @@ const TAG_COLOR_MAP = {
 };
 
 export default function PostCard({ post, aiSummaryEnabled }) {
+  const [currentPost, setCurrentPost] = useState(post);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title || '');
+  const [editBody, setEditBody] = useState(post.body || post.content || '');
+  const [isSaving, setIsSaving] = useState(false);
+
   const [voteState, setVoteState]       = useState('none'); // 'up' | 'down' | 'none'
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [bookmarked, setBookmarked]     = useState(false);
   const [reported, setReported]         = useState(false);
   const [showReportConfirm, setShowReportConfirm] = useState(false);
 
-  const upvoteCount   = (post.upvotes || 0)   + (voteState === 'up'   ? 1 : 0);
-  const downvoteCount = (post.downvotes || 0) + (voteState === 'down' ? 1 : 0);
+  const upvoteCount   = (currentPost.upvotes || 0)   + (voteState === 'up'   ? 1 : 0);
+  const downvoteCount = (currentPost.downvotes || 0) + (voteState === 'down' ? 1 : 0);
 
   const handleVote = (dir) => {
     setVoteState(prev => prev === dir ? 'none' : dir);
@@ -83,15 +90,85 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     }, 1500);
   };
 
+    const handleSaveEdit = async () => {
+    if (!editTitle.trim() || !editBody.trim()) {
+      alert('Title and content are required.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: editTitle,
+          content: editBody,
+          tags: currentPost.tags || [],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update post');
+      }
+
+      const updatedPost = await response.json();
+
+      setCurrentPost({
+        ...currentPost,
+        ...updatedPost,
+        body: updatedPost.content,
+      });
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error(error);
+      alert('Could not update the post.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    const confirmDelete = window.confirm('Are you sure you want to delete this post?');
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete post');
+      }
+
+      setIsDeleted(true);
+    } catch (error) {
+      console.error(error);
+      alert('Could not delete the post.');
+    }
+  };
+
   // Derive display values — works for both mock posts and DB posts
-  const authorName   = post.user?.name   || post.username || 'Anonymous';
-  const authorHandle = post.user?.handle || '';
-  const authorAvatar = post.user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(post.username || 'Anon')}&backgroundColor=b6e3f4`;
-  const postBody     = post.body || post.content || '';
-  const postTime     = post.timeAgo || (post.created_at ? new Date(post.created_at).toLocaleDateString() : 'just now');
-  const postTags     = post.tags || [];
-  const commentCount = post.commentCount || 0;
-  const comments     = post.comments || [];
+  const authorName   = currentPost.user?.name   || currentPost.username || 'Anonymous';
+  const authorHandle = currentPost.user?.handle || '';
+  const authorAvatar = currentPost.user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(currentPost.username || 'Anon')}&backgroundColor=b6e3f4`;
+  const postBody     = currentPost.body || currentPost.content || '';
+  const postTime     = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
+  const postTags     = currentPost.tags || [];
+  const commentCount = currentPost.commentCount || 0;
+  const comments     = currentPost.comments || [];
+  const isDatabasePost = Boolean(currentPost.created_at);
+
+  if (isDeleted) {
+    return null;
+  }
 
   return (
     <article
@@ -161,18 +238,70 @@ export default function PostCard({ post, aiSummaryEnabled }) {
       </div>
 
       {/* ── Post Title ────────────────────────────────────── */}
-      <h2
-        className="font-display font-bold text-base leading-snug mb-2 cursor-pointer transition-colors hover:text-[color:var(--color-accent-light)]"
-        style={{ color: 'var(--color-text-primary)' }}
-      >
-        {post.title}
-      </h2>
+      {isEditing ? (
+        <input
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          className="w-full mb-2 p-2 rounded-lg"
+          style={{
+            background: 'var(--color-surface-2)',
+            color: 'var(--color-text-primary)',
+            border: '1px solid var(--color-border)',
+          }}
+        />
+      ) : (
+        <h2
+          className="font-display font-bold text-base leading-snug mb-2 cursor-pointer transition-colors hover:text-[color:var(--color-accent-light)]"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          {currentPost.title}
+        </h2>
+      )}
 
       {/* ── Post Body ─────────────────────────────────────── */}
-      <p className="text-sm leading-relaxed mb-4 line-clamp-3"
-        style={{ color: 'var(--color-text-secondary)' }}>
-        {postBody}
-      </p>
+      {isEditing ? (
+        <div className="mb-4">
+          <textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            className="w-full p-2 rounded-lg"
+            rows="3"
+            style={{
+              background: 'var(--color-surface-2)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
+            }}
+          />
+
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="vote-btn"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+
+            <button
+              onClick={() => {
+                setIsEditing(false);
+                setEditTitle(currentPost.title || '');
+                setEditBody(currentPost.body || currentPost.content || '');
+              }}
+              className="vote-btn"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p
+          className="text-sm leading-relaxed mb-4 line-clamp-3"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          {postBody}
+        </p>
+      )}
 
       {/* ── Tags/Flairs ───────────────────────────────────── */}
       {postTags.length > 0 && (
@@ -237,6 +366,30 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           <ShareIcon />
           Share
         </button>
+
+        {isDatabasePost && (
+        <>
+          {/* Edit */}
+          <button
+            id={`edit-post-${currentPost.id}`}
+            onClick={() => setIsEditing(true)}
+            className="vote-btn"
+            aria-label="Edit post"
+          >
+            Edit
+          </button>
+
+          {/* Delete */}
+          <button
+            id={`delete-post-${currentPost.id}`}
+            onClick={handleDeletePost}
+            className="vote-btn"
+            aria-label="Delete post"
+          >
+            Delete
+          </button>
+        </>
+      )}
 
         {/* Bookmark */}
         <button
