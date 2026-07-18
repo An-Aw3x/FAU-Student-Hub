@@ -20,6 +20,7 @@ export default function App() {
   const [aiSummaryEnabled,  setAiSummaryEnabled]  = useState(false);
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
+  const [sortMode, setSortMode] = useState('hot');
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const [theme, setTheme] = useState("light");
   const [activeView, setActiveView] = useState('feed');
@@ -67,19 +68,44 @@ export default function App() {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
 
-      const aScore = (a.upvotes || 0) - (a.downvotes || 0);
-      const bScore = (b.upvotes || 0) - (b.downvotes || 0);
+      const getTime = (post) => {
+        if (!post.created_at) return 0;
+        return new Date(post.created_at).getTime();
+      };
 
-      if (bScore !== aScore) {
-        return bScore - aScore;
+      const getScore = (post) => {
+        return (post.upvotes || 0) - (post.downvotes || 0);
+      };
+
+      const getHotScore = (post) => {
+        const score = getScore(post);
+        const time = getTime(post);
+
+        if (!time) return score;
+
+        const ageHours = Math.max(0, (Date.now() - time) / 3600000);
+        const recencyBoost = Math.max(0, 24 - ageHours) / 6;
+
+        return score + recencyBoost;
+      };
+
+      if (sortMode === 'new') {
+        return getTime(b) - getTime(a);
       }
 
-      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (sortMode === 'top') {
+        const scoreDifference = getScore(b) - getScore(a);
+        if (scoreDifference !== 0) return scoreDifference;
 
-      return bTime - aTime;
+        return getTime(b) - getTime(a);
+      }
+
+      const hotDifference = getHotScore(b) - getHotScore(a);
+      if (hotDifference !== 0) return hotDifference;
+
+      return getTime(b) - getTime(a);
     });
-  }, [allPosts, activeTag, searchQuery]);
+  }, [allPosts, activeTag, searchQuery, sortMode]);
 
   const handleTagChange = (tagId) => {
     setActiveTag(tagId);
@@ -191,7 +217,10 @@ export default function App() {
           aria-label="Community feed"
         >
           {activeView === 'saved' ? (
-            <SavedPosts onBack={() => setActiveView('feed')} />
+            <SavedPosts
+              isAdmin={isAdmin}
+              onBack={() => setActiveView('feed')}
+            />
           ) : activeView === 'admin' ? (
             <AdminReports
               isAdmin={isAdmin}
@@ -215,6 +244,19 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {['hot', 'new', 'top'].map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setSortMode(mode)}
+                        className={`vote-btn ${sortMode === mode ? 'upvoted' : ''}`}
+                      >
+                        {mode === 'hot' ? 'Hot 🔥' : mode === 'new' ? 'New' : 'Top'}
+                      </button>
+                    ))}
+                  </div>
+
                   {aiSummaryEnabled && (
                     <span
                       className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
@@ -235,6 +277,18 @@ export default function App() {
                   >
                     🔖 Saved Posts
                   </button>
+                  {aiSummaryEnabled && (
+                    <span
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(153, 200, 238, 0.12)',
+                        border: '1px solid rgba(115, 114, 201, 0.14)',
+                        color: 'var(--color-accent-light)',
+                      }}
+                    >
+                      ✨ AI Features Enabled
+                    </span>
+                  )}
 
                   {isAdmin && (
                     <button
@@ -267,6 +321,7 @@ export default function App() {
                       key={post.created_at ? `db-${post.id}` : `mock-${post.id}`}
                       post={post}
                       aiSummaryEnabled={aiSummaryEnabled}
+                      isAdmin={isAdmin}
                     />
                   ))}
                 </div>

@@ -44,6 +44,7 @@ db.serialize(() => {
       tags TEXT DEFAULT '',
       image_url TEXT DEFAULT '',
       link_url TEXT DEFAULT '',
+      is_pinned INTEGER DEFAULT 0,
       likes INTEGER DEFAULT 0,
       upvotes INTEGER DEFAULT 0,
       downvotes INTEGER DEFAULT 0,
@@ -52,6 +53,12 @@ db.serialize(() => {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`ALTER TABLE posts ADD COLUMN is_pinned INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
 
   db.run(`ALTER TABLE posts ADD COLUMN tags TEXT DEFAULT ''`, (err) => {
     if (err && !err.message.includes("duplicate column")) {
@@ -101,11 +108,18 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       post_id INTEGER NOT NULL,
       username TEXT DEFAULT 'Anonymous',
       content TEXT NOT NULL,
+      likes INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       reports INTEGER DEFAULT 0,
       report_reason TEXT DEFAULT ''
     )
   `);
+
+  db.run(`ALTER TABLE comments ADD COLUMN likes INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
 
   db.run(`ALTER TABLE comments ADD COLUMN reports INTEGER DEFAULT 0`, (err) => {
     if (err && !err.message.includes("duplicate column")) {
@@ -144,6 +158,18 @@ db.run(`
   )
 `);
 
+// Tracks one like per user per comment
+db.run(`
+  CREATE TABLE IF NOT EXISTS comment_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comment_id INTEGER NOT NULL,
+    username TEXT DEFAULT 'Anonymous',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(comment_id, username),
+    FOREIGN KEY (comment_id) REFERENCES comments(id)
+  )
+`);
+
 // Tracks every individual report record for posts and comments
 db.run(`
   CREATE TABLE IF NOT EXISTS report_records (
@@ -170,6 +196,7 @@ app.get("/api/posts", (req, res) => {
 
     const posts = rows.map((row) => ({
       ...row,
+      isPinned: Boolean(row.is_pinned),
       tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
     }));
 
@@ -455,10 +482,24 @@ app.patch("/api/posts/:id/report", (req, res) => {
 // Get comments for a specific post
 app.get("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
+  const username = req.query.username || "Jamie Owls";
 
   db.all(
-    "SELECT * FROM comments WHERE post_id = ? ORDER BY created_at DESC",
-    [postId],
+    `
+    SELECT 
+      comments.*,
+      CASE 
+        WHEN comment_votes.id IS NULL THEN 0 
+        ELSE 1 
+      END AS liked_by_current_user
+    FROM comments
+    LEFT JOIN comment_votes
+      ON comment_votes.comment_id = comments.id
+      AND comment_votes.username = ?
+    WHERE comments.post_id = ?
+    ORDER BY comments.created_at DESC
+    `,
+    [username, postId],
     (err, rows) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -499,6 +540,93 @@ app.post("/api/posts/:postId/comments", (req, res) => {
       });
     }
   );
+});
+
+// Like or unlike a comment
+app.patch("/api/comments/:id/like", (req, res) => {
+  const { id } = req.params;
+  const username = req.body.username || "Jamie Owls";
+
+  db.get("SELECT * FROM comments WHERE id = ?", [id], (err, comment) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!comment) {
+      return res.status(404).json({ error: "Comment not found." });
+    }
+
+    db.get(
+      "SELECT * FROM comment_votes WHERE comment_id = ? AND username = ?",
+      [id, username],
+      (err, existingLike) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        if (existingLike) {
+          db.run(
+            "DELETE FROM comment_votes WHERE comment_id = ? AND username = ?",
+            [id, username],
+            (err) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              db.run(
+                "UPDATE comments SET likes = CASE WHEN COALESCE(likes, 0) > 0 THEN likes - 1 ELSE 0 END WHERE id = ?",
+                [id],
+                (err) => {
+                  if (err) {
+                    return res.status(500).json({ error: err.message });
+                  }
+
+                  returnUpdatedComment(false);
+                }
+              );
+            }
+          );
+
+          return;
+        }
+
+        db.run(
+          "INSERT INTO comment_votes (comment_id, username) VALUES (?, ?)",
+          [id, username],
+          (err) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            db.run(
+              "UPDATE comments SET likes = COALESCE(likes, 0) + 1 WHERE id = ?",
+              [id],
+              (err) => {
+                if (err) {
+                  return res.status(500).json({ error: err.message });
+                }
+
+                returnUpdatedComment(true);
+              }
+            );
+          }
+        );
+
+        function returnUpdatedComment(liked) {
+          db.get("SELECT * FROM comments WHERE id = ?", [id], (err, row) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            res.json({
+              ...row,
+              liked,
+            });
+          });
+        }
+      }
+    );
+  });
 });
 
 // Report a comment
@@ -791,6 +919,38 @@ app.get("/api/saved-posts", (req, res) => {
       }
     );
   });
+});
+
+// Admin: pin or unpin a post
+app.patch("/api/posts/:id/pin", (req, res) => {
+  const { id } = req.params;
+  const isPinned = req.body.isPinned ? 1 : 0;
+
+  db.run(
+    "UPDATE posts SET is_pinned = ? WHERE id = ?",
+    [isPinned, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Post not found." });
+      }
+
+      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          ...row,
+          isPinned: Boolean(row.is_pinned),
+          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+        });
+      });
+    }
+  );
 });
 
 // Delete a post

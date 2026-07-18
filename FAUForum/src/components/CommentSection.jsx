@@ -95,7 +95,9 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         setError('');
         setComments([]);
 
-        const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`);
+        const response = await fetch(
+          `http://localhost:3001/api/posts/${postId}/comments?username=Jamie%20Owls`
+        );
 
         if (!response.ok) {
           throw new Error('Could not load comments.');
@@ -114,13 +116,23 @@ export default function CommentSection({ postId, onCommentCountChange }) {
             },
             text: comment.content,
             time: formatCommentTime(comment.created_at),
-            likes: 0,
+            likes: comment.likes || 0,
+            likedByCurrentUser: Boolean(comment.liked_by_current_user),
             reports: comment.reports || 0,
             reportReason: comment.report_reason || '',
           }));
 
+        const likedMap = {};
+
+        formattedComments.forEach(comment => {
+          if (comment.likedByCurrentUser) {
+            likedMap[comment.id] = true;
+          }
+        });
+
         if (isMounted) {
           setComments(formattedComments);
+          setLikedComments(likedMap);
           onCommentCountChange?.(formattedComments.length);
         }
       } catch (err) {
@@ -143,11 +155,43 @@ export default function CommentSection({ postId, onCommentCountChange }) {
     };
   }, [postId, onCommentCountChange]);
 
-  const toggleLike = (commentId) => {
-    setLikedComments(prev => ({
-      ...prev,
-      [commentId]: !prev[commentId],
-    }));
+  const toggleLike = async (commentId) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/comments/${commentId}/like`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: 'Jamie Owls',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to like comment.');
+      }
+
+      const updatedComment = await response.json();
+
+      setComments(prev =>
+        prev.map(comment =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likes: updatedComment.likes || 0,
+              }
+            : comment
+        )
+      );
+
+      setLikedComments(prev => ({
+        ...prev,
+        [commentId]: updatedComment.liked,
+      }));
+    } catch (err) {
+      console.error(err);
+      alert('Could not update comment like.');
+    }
   };
 
   const handleReportComment = async (reason) => {
@@ -375,7 +419,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                     aria-pressed={!!likedComments[comment.id]}
                   >
                     <ThumbUpIcon filled={likedComments[comment.id]} />
-                    {comment.likes + (likedComments[comment.id] ? 1 : 0)}
+                    {comment.likes}
                   </button>
 
                   <button

@@ -77,7 +77,46 @@ const REPORT_REASONS = [
   { value: 'other', label: 'Other' },
 ];
 
-export default function PostCard({ post, aiSummaryEnabled }) {
+const formatPostTime = (createdAt, fallbackTimeAgo) => {
+  if (fallbackTimeAgo) return fallbackTimeAgo;
+  if (!createdAt) return 'just now';
+
+  const normalizedDate =
+    typeof createdAt === 'string'
+      ? createdAt.replace(' ', 'T')
+      : createdAt;
+
+  const postDate = new Date(normalizedDate);
+
+  if (Number.isNaN(postDate.getTime())) {
+    return 'just now';
+  }
+
+  const now = new Date();
+  const diffMinutes = Math.max(0, Math.floor((now - postDate) / 60000));
+
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes === 1) return '1 minute ago';
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+
+  if (diffHours === 1) return '1 hour ago';
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays === 1) return '1 day ago';
+  if (diffDays < 7) return `${diffDays} days ago`;
+
+  return postDate.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
   const [currentPost, setCurrentPost] = useState(post);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -105,6 +144,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   }, [post]);
 
   const isDatabasePost = Boolean(currentPost.created_at);
+  const canAdminManagePost = isDatabasePost && isAdmin;
 
   useEffect(() => {
     let isMounted = true;
@@ -334,6 +374,40 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     }
   };
 
+  const handleTogglePin = async () => {
+    if (!canAdminManagePost) return;
+
+    const nextPinnedState = !Boolean(currentPost.isPinned || currentPost.is_pinned);
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}/pin`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isPinned: nextPinnedState,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update featured post.');
+      }
+
+      const updatedPost = await response.json();
+
+      setCurrentPost({
+        ...currentPost,
+        ...updatedPost,
+        isPinned: updatedPost.isPinned,
+        body: updatedPost.content,
+      });
+    } catch (error) {
+      console.error(error);
+      alert('Could not update featured post.');
+    }
+  };
+
   const authorName = currentPost.user?.name || currentPost.username || 'Anonymous';
   const authorHandle = currentPost.user?.handle || '';
   const authorAvatar =
@@ -343,7 +417,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     )}&backgroundColor=b6e3f4`;
 
   const postBody = currentPost.body || currentPost.content || '';
-  const postTime = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
+  const postTime = formatPostTime(currentPost.created_at, currentPost.timeAgo);
   const postTags = currentPost.tags || [];
   const imageUrl = currentPost.image_url || currentPost.imageUrl || '';
   const linkUrl = currentPost.link_url || currentPost.linkUrl || '';
@@ -459,10 +533,20 @@ export default function PostCard({ post, aiSummaryEnabled }) {
             }}
           />
 
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2 mt-2 flex-wrap">
             <button onClick={handleSaveEdit} disabled={isSaving} className="vote-btn">
               {isSaving ? 'Saving...' : 'Save'}
             </button>
+
+            {canAdminManagePost && (
+              <button
+                type="button"
+                onClick={handleTogglePin}
+                className="vote-btn"
+              >
+                {currentPost.isPinned || currentPost.is_pinned ? 'Unpin Featured' : 'Pin Featured'}
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -573,8 +657,9 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           Share
         </button>
 
-        {isDatabasePost && (
+        {canAdminManagePost && (
           <>
+
             <button
               id={`edit-post-${currentPost.id}`}
               onClick={() => setIsEditing(true)}
