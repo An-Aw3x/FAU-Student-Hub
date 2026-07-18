@@ -62,7 +62,15 @@ export default function App() {
     }
 
     // Pinned posts first
-    return [...posts].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+    return [...posts].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+
+      return bTime - aTime;
+    });
   }, [allPosts, activeTag, searchQuery]);
 
   const handleTagChange = (tagId) => {
@@ -189,7 +197,7 @@ export default function App() {
             <div className="flex flex-col gap-4">
               {filteredPosts.map(post => (
                 <PostCard
-                  key={post.id}
+                  key={post.created_at ? `db-${post.id}` : `mock-${post.id}`}
                   post={post}
                   aiSummaryEnabled={aiSummaryEnabled}
                 />

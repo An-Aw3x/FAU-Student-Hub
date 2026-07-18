@@ -106,35 +106,78 @@ app.post("/api/posts", (req, res) => {
     }
   );
 });
+// Edit/update a post
+app.put("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
+  const { title, content, tags } = req.body;
+
+  if (!title || !content) {
+    return res.status(400).json({ error: "Title and content are required." });
+  }
+
+  const tagsStr = Array.isArray(tags) ? tags.join(",") : null;
+
+  db.run(
+    `
+    UPDATE posts
+    SET title = ?, content = ?, tags = COALESCE(?, tags)
+    WHERE id = ?
+    `,
+    [title, content, tagsStr, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Post not found." });
+      }
+
+      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          ...row,
+          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+        });
+      });
+    }
+  );
+});
 
 // Get comments for a specific post
 app.get("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
 
-  db.all("SELECT * FROM comments WHERE post_id = ? ORDER BY created_at DESC", [postId], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  db.all(
+    "SELECT * FROM comments WHERE post_id = ? ORDER BY created_at DESC",
+    [postId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
 
-    res.json(rows);
-  });
+      res.json(rows);
+    }
+  );
 });
 
-// Create a new comment for a specific post
+// Add a comment to a post
 app.post("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
-  const { content, username } = req.body;
+  const { username, content } = req.body;
 
   if (!content) {
-    return res.status(400).json({ error: "Content is required." });
+    return res.status(400).json({ error: "Comment content is required." });
   }
 
-  // TODO: Replace "Anonymous" with the authenticated user's username once login is implemented.
   const createdAt = new Date().toISOString();
 
   db.run(
-    "INSERT INTO comments (post_id, username, content) VALUES (?, ?, ?)",
-    [postId, username || "Anonymous", content],
+    "INSERT INTO comments (post_id, username, content, created_at) VALUES (?, ?, ?, ?)",
+    [postId, username || "Anonymous", content, createdAt],
     function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -150,7 +193,22 @@ app.post("/api/posts/:postId/comments", (req, res) => {
     }
   );
 });
+// Delete a post
+app.delete("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
 
+  db.run("DELETE FROM posts WHERE id = ?", [id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Post not found." });
+    }
+
+    res.json({ message: "Post deleted successfully." });
+  });
+});
 // Start the server
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
