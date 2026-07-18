@@ -104,6 +104,43 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     }
   };
 
+  const handleTogglePin = async (post) => {
+    const nextPinnedState = !Boolean(post.isPinned || post.is_pinned);
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/posts/${post.id}/pin`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isPinned: nextPinnedState,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Could not update pinned post.');
+      }
+
+      const updatedPost = await response.json();
+
+      setReportedPosts(prev =>
+        prev.map(item =>
+          Number(item.id) === Number(post.id)
+            ? {
+                ...item,
+                isPinned: updatedPost.isPinned,
+                is_pinned: updatedPost.is_pinned,
+              }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      alert('Could not update pinned post.');
+    }
+  };
+
   const toggleItem = (key) => {
     setOpenItems(prev => ({
       ...prev,
@@ -339,7 +376,7 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
                     className="vote-btn"
                   >
                     View original post
-                  </button>
+                  </button>                  
 
                   <button
                     type="button"
