@@ -101,6 +101,30 @@ db.serialize(() => {
   });
 });
 
+// Saved/bookmarked posts table
+db.run(`
+  CREATE TABLE IF NOT EXISTS saved_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL UNIQUE,
+    username TEXT DEFAULT 'Anonymous',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(id)
+  )
+`);
+
+// Tracks one vote per user per post
+db.run(`
+  CREATE TABLE IF NOT EXISTS post_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    username TEXT DEFAULT 'Anonymous',
+    vote_type TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, username),
+    FOREIGN KEY (post_id) REFERENCES posts(id)
+  )
+`);
+
 // Test route
 app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is working" });
@@ -202,37 +226,127 @@ app.put("/api/posts/:id", (req, res) => {
 app.patch("/api/posts/:id/vote", (req, res) => {
   const { id } = req.params;
   const { voteType } = req.body;
+  const username = req.body.username || "Jamie Owls";
 
   if (voteType !== "up" && voteType !== "down") {
     return res.status(400).json({ error: "voteType must be 'up' or 'down'." });
   }
 
-  const column = voteType === "up" ? "upvotes" : "downvotes";
+  db.get("SELECT * FROM posts WHERE id = ?", [id], (err, post) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
 
-  db.run(
-    `UPDATE posts SET ${column} = COALESCE(${column}, 0) + 1 WHERE id = ?`,
-    [id],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+    if (!post) {
+      return res.status(404).json({ error: "Post not found." });
+    }
 
-      if (this.changes === 0) {
-        return res.status(404).json({ error: "Post not found." });
-      }
-
-      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+    db.get(
+      "SELECT * FROM post_votes WHERE post_id = ? AND username = ?",
+      [id, username],
+      (err, existingVote) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
 
-        res.json({
-          ...row,
-          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
-        });
-      });
-    }
-  );
+        let upvotes = post.upvotes || 0;
+        let downvotes = post.downvotes || 0;
+        let voteState = voteType;
+
+        if (existingVote && existingVote.vote_type === voteType) {
+          voteState = "none";
+
+          if (voteType === "up") {
+            upvotes = Math.max(upvotes - 1, 0);
+          } else {
+            downvotes = Math.max(downvotes - 1, 0);
+          }
+
+          db.run(
+            "DELETE FROM post_votes WHERE post_id = ? AND username = ?",
+            [id, username],
+            (err) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              saveVoteCounts();
+            }
+          );
+
+          return;
+        }
+
+        if (existingVote && existingVote.vote_type !== voteType) {
+          if (existingVote.vote_type === "up") {
+            upvotes = Math.max(upvotes - 1, 0);
+            downvotes += 1;
+          } else {
+            downvotes = Math.max(downvotes - 1, 0);
+            upvotes += 1;
+          }
+
+          db.run(
+            "UPDATE post_votes SET vote_type = ? WHERE post_id = ? AND username = ?",
+            [voteType, id, username],
+            (err) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              saveVoteCounts();
+            }
+          );
+
+          return;
+        }
+
+        if (!existingVote) {
+          if (voteType === "up") {
+            upvotes += 1;
+          } else {
+            downvotes += 1;
+          }
+
+          db.run(
+            "INSERT INTO post_votes (post_id, username, vote_type) VALUES (?, ?, ?)",
+            [id, username, voteType],
+            (err) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              saveVoteCounts();
+            }
+          );
+        }
+
+        function saveVoteCounts() {
+          db.run(
+            "UPDATE posts SET upvotes = ?, downvotes = ? WHERE id = ?",
+            [upvotes, downvotes, id],
+            (err) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+                if (err) {
+                  return res.status(500).json({ error: err.message });
+                }
+
+                res.json({
+                  ...row,
+                  tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+                  voteState,
+                });
+              });
+            }
+          );
+        }
+      }
+    );
+  });
 });
 
 // Report a post
@@ -403,6 +517,94 @@ app.get("/api/reports", (req, res) => {
       });
     });
   });
+});
+
+// Check if a post is saved
+app.get("/api/posts/:id/saved", (req, res) => {
+  const { id } = req.params;
+
+  db.get("SELECT * FROM saved_posts WHERE post_id = ?", [id], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    res.json({ saved: !!row });
+  });
+});
+
+// Save/bookmark a post
+app.post("/api/posts/:id/save", (req, res) => {
+  const { id } = req.params;
+  const username = req.body.username || "Anonymous";
+
+  db.get("SELECT * FROM posts WHERE id = ?", [id], (err, post) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!post) {
+      return res.status(404).json({ error: "Post not found." });
+    }
+
+    db.run(
+      "INSERT OR IGNORE INTO saved_posts (post_id, username) VALUES (?, ?)",
+      [id, username],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          message: "Post saved.",
+          saved: true,
+          post_id: Number(id),
+        });
+      }
+    );
+  });
+});
+
+// Unsave/remove bookmark from a post
+app.delete("/api/posts/:id/save", (req, res) => {
+  const { id } = req.params;
+
+  db.run("DELETE FROM saved_posts WHERE post_id = ?", [id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    res.json({
+      message: "Post unsaved.",
+      saved: false,
+      post_id: Number(id),
+    });
+  });
+});
+
+// Get all saved posts
+app.get("/api/saved-posts", (req, res) => {
+  db.all(
+    `
+    SELECT 
+      posts.*
+    FROM saved_posts
+    JOIN posts ON saved_posts.post_id = posts.id
+    ORDER BY saved_posts.created_at DESC
+    `,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      const savedPosts = rows.map((row) => ({
+        ...row,
+        tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+      }));
+
+      res.json(savedPosts);
+    }
+  );
 });
 
 // Delete a post

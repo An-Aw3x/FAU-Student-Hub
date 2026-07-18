@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Icons ──────────────────────────────────────────────────
 const ThumbUpIcon = ({ filled }) => (
@@ -437,61 +438,67 @@ export default function CommentSection({ postId, onCommentCountChange }) {
       </div>
 
       {/* ── Report Comment Popup ───────────────────────────── */}
-      {reportingCommentId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: 'rgba(0, 0, 0, 0.55)' }}
-        >
+      {reportingCommentId &&
+        createPortal(
           <div
-            className="w-full max-w-sm rounded-2xl p-4 shadow-xl"
+            className="fixed inset-0 flex items-center justify-center px-4"
             style={{
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-primary)',
+              background: 'rgba(0, 0, 0, 0.55)',
+              zIndex: 999999,
             }}
           >
-            <h3 className="font-bold text-base mb-2">Report comment</h3>
-
-            <p
-              className="text-sm mb-4"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              Why are you reporting this comment?
-            </p>
-
-            <div className="flex flex-col gap-2">
-              {REPORT_REASONS.map(reason => (
-                <button
-                  key={reason.value}
-                  onClick={() => handleReportComment(reason.value)}
-                  disabled={reportSubmitting}
-                  className="text-left px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--color-surface-3)',
-                    color: 'var(--color-text-primary)',
-                    border: '1px solid var(--color-border)',
-                  }}
-                >
-                  {reason.label}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setReportingCommentId(null)}
-              disabled={reportSubmitting}
-              className="mt-4 w-full px-3 py-2 rounded-xl text-sm font-bold"
+            <div
+              className="w-full max-w-sm rounded-2xl p-4 shadow-xl max-h-[80vh] overflow-y-auto"
               style={{
-                background: 'transparent',
-                color: 'var(--color-text-muted)',
+                background: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                zIndex: 1000000,
               }}
             >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+              <h3 className="font-bold text-base mb-2">Report comment</h3>
+
+              <p
+                className="text-sm mb-4"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                Why are you reporting this comment?
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {REPORT_REASONS.map(reason => (
+                  <button
+                    key={reason.value}
+                    onClick={() => handleReportComment(reason.value)}
+                    disabled={reportSubmitting}
+                    className="text-left px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                    style={{
+                      background: 'var(--color-surface-3)',
+                      color: 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    {reason.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setReportingCommentId(null)}
+                disabled={reportSubmitting}
+                className="mt-4 w-full px-3 py-2 rounded-xl text-sm font-bold"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

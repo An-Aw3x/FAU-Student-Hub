@@ -106,6 +106,38 @@ export default function PostCard({ post, aiSummaryEnabled }) {
 
   const isDatabasePost = Boolean(currentPost.created_at);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSavedStatus() {
+      if (!currentPost.created_at) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}/saved`);
+
+        if (!response.ok) {
+          throw new Error('Failed to load saved status.');
+        }
+
+        const data = await response.json();
+
+        if (isMounted) {
+          setBookmarked(data.saved);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    loadSavedStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentPost.id, currentPost.created_at]);
+
   const upvoteCount = isDatabasePost
     ? currentPost.upvotes || 0
     : (currentPost.upvotes || 0) + (voteState === 'up' ? 1 : 0);
@@ -128,6 +160,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         },
         body: JSON.stringify({
           voteType: dir,
+          username: 'Jamie Owls',
         }),
       });
 
@@ -143,7 +176,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         body: updatedPost.content,
       });
 
-      setVoteState(dir);
+      setVoteState(updatedPost.voteState || dir);
     } catch (error) {
       console.error(error);
       alert('Could not save vote.');
@@ -269,6 +302,35 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     } catch (error) {
       console.error(error);
       alert('Could not delete the post.');
+    }
+  };
+
+  const handleBookmark = async () => {
+    if (!isDatabasePost) {
+      setBookmarked((p) => !p);
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}/save`, {
+        method: bookmarked ? 'DELETE' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: currentPost.username || 'Anonymous',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update bookmark.');
+      }
+
+      const data = await response.json();
+      setBookmarked(data.saved);
+    } catch (error) {
+      console.error(error);
+      alert('Could not update saved post.');
     }
   };
 
@@ -503,7 +565,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
 
         <button
           id={`bookmark-post-${currentPost.id}`}
-          onClick={() => setBookmarked((p) => !p)}
+          onClick={handleBookmark}
           className={`vote-btn ml-auto ${bookmarked ? 'upvoted' : ''}`}
           aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark post'}
           aria-pressed={bookmarked}
