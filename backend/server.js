@@ -19,7 +19,16 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
-// Create tables and migrate old database columns
+const allowedReportReasons = [
+  "spam",
+  "harassment",
+  "nudity",
+  "hate",
+  "violence",
+  "other",
+];
+
+// Serialize table creation and migration
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -31,6 +40,8 @@ db.serialize(() => {
       likes INTEGER DEFAULT 0,
       upvotes INTEGER DEFAULT 0,
       downvotes INTEGER DEFAULT 0,
+      reports INTEGER DEFAULT 0,
+      report_reason TEXT DEFAULT '',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -53,15 +64,41 @@ db.serialize(() => {
     }
   });
 
+  db.run(`ALTER TABLE posts ADD COLUMN reports INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
+
+  db.run(`ALTER TABLE posts ADD COLUMN report_reason TEXT DEFAULT ''`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
+
   db.run(`
     CREATE TABLE IF NOT EXISTS comments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       post_id INTEGER NOT NULL,
       username TEXT DEFAULT 'Anonymous',
       content TEXT NOT NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      reports INTEGER DEFAULT 0,
+      report_reason TEXT DEFAULT ''
     )
   `);
+
+  db.run(`ALTER TABLE comments ADD COLUMN reports INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
+
+  db.run(`ALTER TABLE comments ADD COLUMN report_reason TEXT DEFAULT ''`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
 });
 
 // Test route
@@ -112,6 +149,8 @@ app.post("/api/posts", (req, res) => {
         likes: 0,
         upvotes: 0,
         downvotes: 0,
+        reports: 0,
+        report_reason: "",
         created_at: new Date().toISOString(),
       });
     }
@@ -196,6 +235,43 @@ app.patch("/api/posts/:id/vote", (req, res) => {
   );
 });
 
+// Report a post
+app.patch("/api/posts/:id/report", (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  if (!reason || !allowedReportReasons.includes(reason)) {
+    return res.status(400).json({
+      error: "Invalid report reason.",
+    });
+  }
+
+  db.run(
+    "UPDATE posts SET reports = COALESCE(reports, 0) + 1, report_reason = ? WHERE id = ?",
+    [reason, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Post not found." });
+      }
+
+      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          ...row,
+          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+        });
+      });
+    }
+  );
+});
+
 // Get comments for a specific post
 app.get("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
@@ -238,6 +314,42 @@ app.post("/api/posts/:postId/comments", (req, res) => {
         username: username || "Anonymous",
         content,
         created_at: createdAt,
+        reports: 0,
+        report_reason: "",
+      });
+    }
+  );
+});
+
+// Report a comment
+app.patch("/api/comments/:id/report", (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  if (!reason || !allowedReportReasons.includes(reason)) {
+    return res.status(400).json({
+      error: "Invalid report reason.",
+    });
+  }
+
+  db.run(
+    "UPDATE comments SET reports = COALESCE(reports, 0) + 1, report_reason = ? WHERE id = ?",
+    [reason, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Comment not found." });
+      }
+
+      db.get("SELECT * FROM comments WHERE id = ?", [id], (err, row) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json(row);
       });
     }
   );

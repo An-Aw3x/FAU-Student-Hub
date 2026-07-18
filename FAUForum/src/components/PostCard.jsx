@@ -68,6 +68,15 @@ const TAG_COLOR_MAP = {
   sports: '#2DD4BF',
 };
 
+const REPORT_REASONS = [
+  { value: 'spam', label: 'Spam' },
+  { value: 'harassment', label: 'Harassment or bullying' },
+  { value: 'nudity', label: 'Nudity or sexual content' },
+  { value: 'hate', label: 'Hate speech' },
+  { value: 'violence', label: 'Violence or threats' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function PostCard({ post, aiSummaryEnabled }) {
   const [currentPost, setCurrentPost] = useState(post);
   const [isDeleted, setIsDeleted] = useState(false);
@@ -80,7 +89,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [reported, setReported] = useState(false);
-  const [showReportConfirm, setShowReportConfirm] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount || 0);
 
   useEffect(() => {
@@ -90,6 +100,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     setCommentCount(post.commentCount || 0);
     setIsDeleted(false);
     setIsEditing(false);
+    setReportModalOpen(false);
+    setReportSubmitting(false);
   }, [post]);
 
   const isDatabasePost = Boolean(currentPost.created_at);
@@ -103,7 +115,6 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     : (currentPost.downvotes || 0) + (voteState === 'down' ? 1 : 0);
 
   const handleVote = async (dir) => {
-    // Mock posts can still use local frontend voting
     if (!isDatabasePost) {
       setVoteState(prev => prev === dir ? 'none' : dir);
       return;
@@ -139,12 +150,61 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     }
   };
 
-  const handleReport = () => {
-    setShowReportConfirm(true);
-    setTimeout(() => {
+  const handleReport = async (reason) => {
+    if (reported || reportSubmitting) {
+      return;
+    }
+
+    if (!REPORT_REASONS.some(item => item.value === reason)) {
+      alert('Invalid report reason.');
+      return;
+    }
+
+    if (!isDatabasePost) {
+      setReportSubmitting(true);
+
+      setTimeout(() => {
+        setReported(true);
+        setReportModalOpen(false);
+        setReportSubmitting(false);
+      }, 800);
+
+      return;
+    }
+
+    try {
+      setReportSubmitting(true);
+
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}/report`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reason,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to report post');
+      }
+
+      const updatedPost = await response.json();
+
+      setCurrentPost({
+        ...currentPost,
+        ...updatedPost,
+        body: updatedPost.content,
+      });
+
       setReported(true);
-      setShowReportConfirm(false);
-    }, 1500);
+      setReportModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      alert('Could not report the post.');
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -219,6 +279,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
       currentPost.username || 'Anon'
     )}&backgroundColor=b6e3f4`;
+
   const postBody = currentPost.body || currentPost.content || '';
   const postTime = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
   const postTags = currentPost.tags || [];
@@ -228,7 +289,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   }
 
   return (
-    <article
+    <>
+      <article
       id={`post-${currentPost.id}`}
       className="post-card p-5 animate-fade-in"
       aria-label={`Post: ${currentPost.title}`}
@@ -278,16 +340,20 @@ export default function PostCard({ post, aiSummaryEnabled }) {
 
         <button
           id={`report-post-${currentPost.id}`}
-          onClick={handleReport}
-          disabled={reported}
+          onClick={() => setReportModalOpen(true)}
+          disabled={reported || reportSubmitting}
           className="shrink-0 p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
           style={{ color: reported ? '#F87171' : 'var(--color-text-muted)' }}
           title={reported ? 'Post reported' : 'Report post'}
           aria-label={`Report post: ${currentPost.title}`}
         >
-          {showReportConfirm ? (
+          {reported ? (
             <span className="text-xs font-semibold" style={{ color: '#F87171' }}>
-              Reported!
+              Reported
+            </span>
+          ) : reportSubmitting ? (
+            <span className="text-xs font-semibold" style={{ color: '#F87171' }}>
+              Sending...
             </span>
           ) : (
             <ReportIcon />
@@ -447,12 +513,69 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </button>
       </div>
 
-      {commentsOpen && (
+            {commentsOpen && (
         <CommentSection
           postId={currentPost.id}
           onCommentCountChange={setCommentCount}
         />
       )}
     </article>
-  );
+
+    {reportModalOpen && !reported && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center px-4"
+        style={{ background: 'rgba(0, 0, 0, 0.55)' }}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl p-4 shadow-xl max-h-[80vh] overflow-y-auto"
+          style={{
+            background: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <h3 className="font-bold text-base mb-2">Report post</h3>
+
+          <p
+            className="text-sm mb-4"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Why are you reporting this post?
+          </p>
+
+          <div className="flex flex-col gap-2">
+            {REPORT_REASONS.map(reason => (
+              <button
+                key={reason.value}
+                onClick={() => handleReport(reason.value)}
+                disabled={reportSubmitting}
+                className="text-left px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                style={{
+                  background: 'var(--color-surface-3)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {reason.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setReportModalOpen(false)}
+            disabled={reportSubmitting}
+            className="mt-4 w-full px-3 py-2 rounded-xl text-sm font-bold"
+            style={{
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+  </>
+);
 }
