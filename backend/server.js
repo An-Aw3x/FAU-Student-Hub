@@ -751,30 +751,46 @@ app.delete("/api/posts/:id/save", (req, res) => {
   });
 });
 
-// Get all saved posts
+// Get saved posts with pagination / load more support
 app.get("/api/saved-posts", (req, res) => {
-  db.all(
-    `
-    SELECT 
-      posts.*
-    FROM saved_posts
-    JOIN posts ON saved_posts.post_id = posts.id
-    ORDER BY saved_posts.created_at DESC
-    `,
-    [],
-    (err, rows) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 25);
+  const offset = (page - 1) * limit;
 
-      const savedPosts = rows.map((row) => ({
-        ...row,
-        tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
-      }));
-
-      res.json(savedPosts);
+  db.get("SELECT COUNT(*) AS total FROM saved_posts", [], (err, countRow) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
     }
-  );
+
+    db.all(
+      `
+      SELECT posts.*
+      FROM saved_posts
+      JOIN posts ON saved_posts.post_id = posts.id
+      ORDER BY saved_posts.created_at DESC
+      LIMIT ? OFFSET ?
+      `,
+      [limit, offset],
+      (err, rows) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        const savedPosts = rows.map((row) => ({
+          ...row,
+          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+        }));
+
+        res.json({
+          posts: savedPosts,
+          page,
+          limit,
+          total: countRow.total || 0,
+          totalPages: Math.ceil((countRow.total || 0) / limit),
+        });
+      }
+    );
+  });
 });
 
 // Delete a post

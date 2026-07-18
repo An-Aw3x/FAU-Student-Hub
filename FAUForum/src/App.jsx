@@ -67,6 +67,13 @@ export default function App() {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
 
+      const aScore = (a.upvotes || 0) - (a.downvotes || 0);
+      const bScore = (b.upvotes || 0) - (b.downvotes || 0);
+
+      if (bScore !== aScore) {
+        return bScore - aScore;
+      }
+
       const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
       const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
 
