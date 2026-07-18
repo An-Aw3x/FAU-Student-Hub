@@ -7,7 +7,12 @@ const app = express();
 const PORT = 3001;
 
 app.use(cors());
-app.use(express.json());
+// TODO before production:
+// This demo accepts small base64 image uploads through JSON.
+// This is not scalable for a real app. Use cloud/file storage
+// like S3, Cloudinary, Firebase Storage, or Supabase Storage,
+// then store only the final image URL in SQLite.
+app.use(express.json({ limit: "2mb" }));
 
 // This creates/opens the SQLite database file
 const dbPath = path.join(__dirname, "fau_forum.db");
@@ -37,6 +42,8 @@ db.serialize(() => {
       content TEXT NOT NULL,
       username TEXT DEFAULT 'Anonymous',
       tags TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
+      link_url TEXT DEFAULT '',
       likes INTEGER DEFAULT 0,
       upvotes INTEGER DEFAULT 0,
       downvotes INTEGER DEFAULT 0,
@@ -75,6 +82,18 @@ db.serialize(() => {
       console.error("Migration error:", err.message);
     }
   });
+
+  db.run(`ALTER TABLE posts ADD COLUMN image_url TEXT DEFAULT ''`, (err) => {
+  if (err && !err.message.includes("duplicate column")) {
+    console.error("Migration error:", err.message);
+  }
+});
+
+db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
+  if (err && !err.message.includes("duplicate column")) {
+    console.error("Migration error:", err.message);
+  }
+});
 
   db.run(`
     CREATE TABLE IF NOT EXISTS comments (
@@ -160,7 +179,7 @@ app.get("/api/posts", (req, res) => {
 
 // Create a new post
 app.post("/api/posts", (req, res) => {
-  const { title, content, username, tags } = req.body;
+  const { title, content, username, tags, image_url, link_url } = req.body;
 
   if (!title || !content) {
     return res.status(400).json({ error: "Title and content are required." });
@@ -169,8 +188,8 @@ app.post("/api/posts", (req, res) => {
   const tagsStr = Array.isArray(tags) ? tags.join(",") : "";
 
   db.run(
-    "INSERT INTO posts (title, content, username, tags) VALUES (?, ?, ?, ?)",
-    [title, content, username || "Anonymous", tagsStr],
+    "INSERT INTO posts (title, content, username, tags, image_url, link_url) VALUES (?, ?, ?, ?, ?, ?)",
+    [title, content, username || "Anonymous", tagsStr, image_url || "", link_url || ""],
     function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -182,6 +201,8 @@ app.post("/api/posts", (req, res) => {
         content,
         username: username || "Anonymous",
         tags: Array.isArray(tags) ? tags : [],
+        image_url: image_url || "",
+        link_url: link_url || "",
         likes: 0,
         upvotes: 0,
         downvotes: 0,

@@ -345,6 +345,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const postBody = currentPost.body || currentPost.content || '';
   const postTime = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
   const postTags = currentPost.tags || [];
+  const imageUrl = currentPost.image_url || currentPost.imageUrl || '';
+  const linkUrl = currentPost.link_url || currentPost.linkUrl || '';
 
   if (isDeleted) {
     return null;
@@ -475,26 +477,46 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           </div>
         </div>
       ) : (
-        <p
-          className="text-sm leading-relaxed mb-4 line-clamp-3"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          {postBody}
-        </p>
-      )}
+        <>
+          <p
+            className="text-sm leading-relaxed mb-4 line-clamp-3"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            {postBody}
+          </p>
 
-      {postTags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {postTags.map((tag) => (
-            <span
-              key={tag}
-              className="tag-chip"
-              style={{ color: TAG_COLOR_MAP[tag] || '#7EB3FF' }}
+          {imageUrl && (
+            <div
+              className="mb-4 overflow-hidden rounded-2xl"
+              style={{ border: '1px solid var(--color-border)' }}
             >
-              #{tag}
-            </span>
-          ))}
-        </div>
+              <img
+                src={imageUrl}
+                alt="Post attachment"
+                className="w-full max-h-80 object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+
+          {linkUrl && (
+            <a
+              href={linkUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block mb-4 rounded-2xl px-4 py-3 text-sm font-semibold transition-all hover:opacity-80"
+              style={{
+                background: 'var(--color-surface-3)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-owl-blue)',
+              }}
+            >
+              🔗 {linkUrl}
+            </a>
+          )}
+        </>
       )}
 
       <div className="flex items-center gap-1 flex-wrap">
