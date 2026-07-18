@@ -5,6 +5,7 @@ import RightSidebar from './components/RightSidebar';
 import PostCard     from './components/PostCard';
 import CreatePost   from './components/CreatePost';
 import SavedPosts   from './components/SavedPosts';
+import AdminReports from './components/AdminReports';
 import { MOCK_POSTS, CURRENT_USER, LOGGED_IN_USER } from './data/mockData';
 import './index.css';
 
@@ -158,6 +159,8 @@ export default function App() {
         >
           {activeView === 'saved' ? (
             <SavedPosts onBack={() => setActiveView('feed')} />
+          ) : activeView === 'admin' ? (
+            <AdminReports onBack={() => setActiveView('feed')} />
           ) : (
             <>
               {/* Feed Header */}
@@ -194,6 +197,14 @@ export default function App() {
                   >
                     🔖 Saved Posts
                   </button>
+
+                  <button
+                  onClick={() => setActiveView('admin')}
+                  className="vote-btn"
+                  aria-label="View admin reports"
+                >
+                  🛡️ Admin Reports
+                </button>
                 </div>
               </div>
 

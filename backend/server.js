@@ -125,6 +125,18 @@ db.run(`
   )
 `);
 
+// Tracks every individual report record for posts and comments
+db.run(`
+  CREATE TABLE IF NOT EXISTS report_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_type TEXT NOT NULL,
+    target_id INTEGER NOT NULL,
+    reporter_username TEXT DEFAULT 'Anonymous',
+    reason TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Test route
 app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is working" });
@@ -353,6 +365,7 @@ app.patch("/api/posts/:id/vote", (req, res) => {
 app.patch("/api/posts/:id/report", (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
+  const reporterUsername = req.body.username || "Jamie Owls";
 
   if (!reason || !allowedReportReasons.includes(reason)) {
     return res.status(400).json({
@@ -360,30 +373,62 @@ app.patch("/api/posts/:id/report", (req, res) => {
     });
   }
 
-  db.run(
-    "UPDATE posts SET reports = COALESCE(reports, 0) + 1, report_reason = ? WHERE id = ?",
-    [reason, id],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  db.get("SELECT * FROM posts WHERE id = ?", [id], (err, post) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
 
-      if (this.changes === 0) {
-        return res.status(404).json({ error: "Post not found." });
-      }
+    if (!post) {
+      return res.status(404).json({ error: "Post not found." });
+    }
 
-      db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+    db.run(
+      `
+      INSERT INTO report_records
+      (target_type, target_id, reporter_username, reason, created_at)
+      VALUES ('post', ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      [id, reporterUsername, reason],
+      (err) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
 
-        res.json({
-          ...row,
-          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
-        });
-      });
-    }
-  );
+        db.get(
+          "SELECT COUNT(*) AS reportCount FROM report_records WHERE target_type = 'post' AND target_id = ?",
+          [id],
+          (err, countRow) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            const reportCount = countRow.reportCount || 0;
+
+            db.run(
+              "UPDATE posts SET reports = ?, report_reason = ? WHERE id = ?",
+              [reportCount, reason, id],
+              function (err) {
+                if (err) {
+                  return res.status(500).json({ error: err.message });
+                }
+
+                db.get("SELECT * FROM posts WHERE id = ?", [id], (err, row) => {
+                  if (err) {
+                    return res.status(500).json({ error: err.message });
+                  }
+
+                  res.json({
+                    ...row,
+                    tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+                  });
+                });
+              }
+            );
+          }
+        );
+      }
+    );
+  });
 });
 
 // Get comments for a specific post
@@ -439,6 +484,7 @@ app.post("/api/posts/:postId/comments", (req, res) => {
 app.patch("/api/comments/:id/report", (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
+  const reporterUsername = req.body.username || "Jamie Owls";
 
   if (!reason || !allowedReportReasons.includes(reason)) {
     return res.status(400).json({
@@ -446,27 +492,59 @@ app.patch("/api/comments/:id/report", (req, res) => {
     });
   }
 
-  db.run(
-    "UPDATE comments SET reports = COALESCE(reports, 0) + 1, report_reason = ? WHERE id = ?",
-    [reason, id],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+  db.get("SELECT * FROM comments WHERE id = ?", [id], (err, comment) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
 
-      if (this.changes === 0) {
-        return res.status(404).json({ error: "Comment not found." });
-      }
+    if (!comment) {
+      return res.status(404).json({ error: "Comment not found." });
+    }
 
-      db.get("SELECT * FROM comments WHERE id = ?", [id], (err, row) => {
+    db.run(
+      `
+      INSERT INTO report_records
+      (target_type, target_id, reporter_username, reason, created_at)
+      VALUES ('comment', ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      [id, reporterUsername, reason],
+      (err) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
 
-        res.json(row);
-      });
-    }
-  );
+        db.get(
+          "SELECT COUNT(*) AS reportCount FROM report_records WHERE target_type = 'comment' AND target_id = ?",
+          [id],
+          (err, countRow) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            const reportCount = countRow.reportCount || 0;
+
+            db.run(
+              "UPDATE comments SET reports = ?, report_reason = ? WHERE id = ?",
+              [reportCount, reason, id],
+              function (err) {
+                if (err) {
+                  return res.status(500).json({ error: err.message });
+                }
+
+                db.get("SELECT * FROM comments WHERE id = ?", [id], (err, row) => {
+                  if (err) {
+                    return res.status(500).json({ error: err.message });
+                  }
+
+                  res.json(row);
+                });
+              }
+            );
+          }
+        );
+      }
+    );
+  });
 });
 
 // Admin: get all reported posts and comments
@@ -511,10 +589,54 @@ app.get("/api/reports", (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      res.json({
-        reportedPosts,
-        reportedComments,
-      });
+      db.all(
+        `
+        SELECT target_id, reporter_username, reason, created_at
+        FROM report_records
+        WHERE target_type = 'post'
+        ORDER BY created_at DESC
+        `,
+        [],
+        (err, postReportDetails) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+
+          db.all(
+            `
+            SELECT target_id, reporter_username, reason, created_at
+            FROM report_records
+            WHERE target_type = 'comment'
+            ORDER BY created_at DESC
+            `,
+            [],
+            (err, commentReportDetails) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+
+              const postsWithDetails = reportedPosts.map((post) => ({
+                ...post,
+                reportDetails: postReportDetails.filter(
+                  (detail) => Number(detail.target_id) === Number(post.id)
+                ),
+              }));
+
+              const commentsWithDetails = reportedComments.map((comment) => ({
+                ...comment,
+                reportDetails: commentReportDetails.filter(
+                  (detail) => Number(detail.target_id) === Number(comment.id)
+                ),
+              }));
+
+              res.json({
+                reportedPosts: postsWithDetails,
+                reportedComments: commentsWithDetails,
+              });
+            }
+          );
+        }
+      );
     });
   });
 });
