@@ -13,6 +13,7 @@ export default function App() {
   // ── Auth state ──────────────────────────────────────────
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const currentUser = isLoggedIn ? LOGGED_IN_USER : CURRENT_USER;
+  const isAdmin = isLoggedIn && currentUser?.name === 'Jamie Owls';
 
   // ── UI state ────────────────────────────────────────────
   const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
@@ -88,6 +89,31 @@ export default function App() {
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
 
+  const handleOpenPostFromAdmin = (postId) => {
+    setActiveTag('all');
+    setSearchQuery('');
+    setActiveView('feed');
+
+    setTimeout(() => {
+      const postElement = document.getElementById(`post-${postId}`);
+
+      if (postElement) {
+        postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const oldShadow = postElement.style.boxShadow;
+        postElement.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.35)';
+
+        setTimeout(() => {
+          postElement.style.boxShadow = oldShadow;
+        }, 2000);
+      }
+    }, 150);
+  };
+
+  const handlePostDeletedFromAdmin = (postId) => {
+    setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
+  };
+
   const handleLoginPrompt = () => {
     setLoginPromptVisible(true);
     setTimeout(() => setLoginPromptVisible(false), 4000);
@@ -160,7 +186,12 @@ export default function App() {
           {activeView === 'saved' ? (
             <SavedPosts onBack={() => setActiveView('feed')} />
           ) : activeView === 'admin' ? (
-            <AdminReports onBack={() => setActiveView('feed')} />
+            <AdminReports
+              isAdmin={isAdmin}
+              onBack={() => setActiveView('feed')}
+              onOpenPost={handleOpenPostFromAdmin}
+              onPostDeleted={handlePostDeletedFromAdmin}
+            />
           ) : (
             <>
               {/* Feed Header */}
@@ -198,13 +229,15 @@ export default function App() {
                     🔖 Saved Posts
                   </button>
 
-                  <button
-                  onClick={() => setActiveView('admin')}
-                  className="vote-btn"
-                  aria-label="View admin reports"
-                >
-                  🛡️ Admin Reports
-                </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setActiveView('admin')}
+                      className="vote-btn"
+                      aria-label="View admin reports"
+                    >
+                      🛡️ Admin Reports
+                    </button>
+                  )}
                 </div>
               </div>
 

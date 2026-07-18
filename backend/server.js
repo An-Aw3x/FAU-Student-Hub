@@ -568,6 +568,33 @@ app.patch("/api/comments/:id/report", (req, res) => {
   });
 });
 
+// Delete a comment
+app.delete("/api/comments/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.run(
+    "DELETE FROM report_records WHERE target_type = 'comment' AND target_id = ?",
+    [id],
+    (err) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      db.run("DELETE FROM comments WHERE id = ?", [id], function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        if (this.changes === 0) {
+          return res.status(404).json({ error: "Comment not found." });
+        }
+
+        res.json({ message: "Comment deleted successfully." });
+      });
+    }
+  );
+});
+
 // Admin: get all reported posts and comments
 app.get("/api/reports", (req, res) => {
   const reportedPostsQuery = `
