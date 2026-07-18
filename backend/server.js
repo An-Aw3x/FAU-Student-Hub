@@ -43,6 +43,16 @@ db.serialize(() => {
   });
 });
 
+// Create the comment table if it does not exist yet
+db.run(` CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id INTEGER NOT NULL,
+  username TEXT DEFAULT 'Anonymous',
+  content TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`); 
+
 // Test route to make sure backend works
 app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is working" });
@@ -105,7 +115,6 @@ app.put("/api/posts/:id", (req, res) => {
     return res.status(400).json({ error: "Title and content are required." });
   }
 
-  // If tags are sent, save them. If not, keep existing tags.
   const tagsStr = Array.isArray(tags) ? tags.join(",") : null;
 
   db.run(
@@ -138,6 +147,52 @@ app.put("/api/posts/:id", (req, res) => {
   );
 });
 
+// Get comments for a specific post
+app.get("/api/posts/:postId/comments", (req, res) => {
+  const { postId } = req.params;
+
+  db.all(
+    "SELECT * FROM comments WHERE post_id = ? ORDER BY created_at DESC",
+    [postId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.json(rows);
+    }
+  );
+});
+
+// Add a comment to a post
+app.post("/api/posts/:postId/comments", (req, res) => {
+  const { postId } = req.params;
+  const { username, content } = req.body;
+
+  if (!content) {
+    return res.status(400).json({ error: "Comment content is required." });
+  }
+
+  const createdAt = new Date().toISOString();
+
+  db.run(
+    "INSERT INTO comments (post_id, username, content, created_at) VALUES (?, ?, ?, ?)",
+    [postId, username || "Anonymous", content, createdAt],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.status(201).json({
+        id: this.lastID,
+        post_id: postId,
+        username: username || "Anonymous",
+        content,
+        created_at: createdAt,
+      });
+    }
+  );
+});
 // Delete a post
 app.delete("/api/posts/:id", (req, res) => {
   const { id } = req.params;
@@ -154,6 +209,7 @@ app.delete("/api/posts/:id", (req, res) => {
     res.json({ message: "Post deleted successfully." });
   });
 });
+// Start the server
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CommentSection from './CommentSection';
 import { AI_SUMMARIES } from '../data/mockData';
 
@@ -23,22 +23,29 @@ const CommentIcon = () => (
 
 const ShareIcon = () => (
   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
   </svg>
 );
 
 const ReportIcon = () => (
   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
   </svg>
 );
 
 const PinIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-    <path fill-rule="evenodd" d="M8 1.75a.75.75 0 0 1 .692.462l1.41 3.393 3.664.293a.75.75 0 0 1 .428 1.317l-2.791 2.39.853 3.575a.75.75 0 0 1-1.12.814L7.998 12.08l-3.135 1.915a.75.75 0 0 1-1.12-.814l.852-3.574-2.79-2.39a.75.75 0 0 1 .427-1.318l3.663-.293 1.41-3.393A.75.75 0 0 1 8 1.75Z" clip-rule="evenodd" />
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4">
+    <path
+      fillRule="evenodd"
+      d="M8 1.75a.75.75 0 0 1 .692.462l1.41 3.393 3.664.293a.75.75 0 0 1 .428 1.317l-2.791 2.39.853 3.575a.75.75 0 0 1-1.12.814L7.998 12.08l-3.135 1.915a.75.75 0 0 1-1.12-.814l.852-3.574-2.79-2.39a.75.75 0 0 1 .427-1.318l3.663-.293 1.41-3.393A.75.75 0 0 1 8 1.75Z"
+      clipRule="evenodd"
+    />
   </svg>
-
 );
 
 const BookmarkIcon = ({ active }) => (
@@ -49,16 +56,16 @@ const BookmarkIcon = ({ active }) => (
 
 const TAG_COLOR_MAP = {
   housing: '#60A5FA',
-  events:  '#34D399',
-  rants:   '#F87171',
-  food:    '#FBBF24',
+  events: '#34D399',
+  rants: '#F87171',
+  food: '#FBBF24',
   classes: '#A78BFA',
-  campus:  '#38BDF8',
-  jobs:    '#4ADE80',
-  tech:    '#818CF8',
-  safety:  '#FB923C',
-  health:  '#F472B6',
-  sports:  '#2DD4BF',
+  campus: '#38BDF8',
+  jobs: '#4ADE80',
+  tech: '#818CF8',
+  safety: '#FB923C',
+  health: '#F472B6',
+  sports: '#2DD4BF',
 };
 
 export default function PostCard({ post, aiSummaryEnabled }) {
@@ -69,17 +76,27 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const [editBody, setEditBody] = useState(post.body || post.content || '');
   const [isSaving, setIsSaving] = useState(false);
 
-  const [voteState, setVoteState]       = useState('none'); // 'up' | 'down' | 'none'
+  const [voteState, setVoteState] = useState('none');
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [bookmarked, setBookmarked]     = useState(false);
-  const [reported, setReported]         = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [reported, setReported] = useState(false);
   const [showReportConfirm, setShowReportConfirm] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
 
-  const upvoteCount   = (currentPost.upvotes || 0)   + (voteState === 'up'   ? 1 : 0);
+  useEffect(() => {
+    setCurrentPost(post);
+    setEditTitle(post.title || '');
+    setEditBody(post.body || post.content || '');
+    setCommentCount(post.commentCount || 0);
+    setIsDeleted(false);
+    setIsEditing(false);
+  }, [post]);
+
+  const upvoteCount = (currentPost.upvotes || 0) + (voteState === 'up' ? 1 : 0);
   const downvoteCount = (currentPost.downvotes || 0) + (voteState === 'down' ? 1 : 0);
 
   const handleVote = (dir) => {
-    setVoteState(prev => prev === dir ? 'none' : dir);
+    setVoteState((prev) => (prev === dir ? 'none' : dir));
   };
 
   const handleReport = () => {
@@ -90,7 +107,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     }, 1500);
   };
 
-    const handleSaveEdit = async () => {
+  const handleSaveEdit = async () => {
     if (!editTitle.trim() || !editBody.trim()) {
       alert('Title and content are required.');
       return;
@@ -155,15 +172,16 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     }
   };
 
-  // Derive display values — works for both mock posts and DB posts
-  const authorName   = currentPost.user?.name   || currentPost.username || 'Anonymous';
+  const authorName = currentPost.user?.name || currentPost.username || 'Anonymous';
   const authorHandle = currentPost.user?.handle || '';
-  const authorAvatar = currentPost.user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(currentPost.username || 'Anon')}&backgroundColor=b6e3f4`;
-  const postBody     = currentPost.body || currentPost.content || '';
-  const postTime     = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
-  const postTags     = currentPost.tags || [];
-  const commentCount = currentPost.commentCount || 0;
-  const comments     = currentPost.comments || [];
+  const authorAvatar =
+    currentPost.user?.avatar ||
+    `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
+      currentPost.username || 'Anon'
+    )}&backgroundColor=b6e3f4`;
+  const postBody = currentPost.body || currentPost.content || '';
+  const postTime = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
+  const postTags = currentPost.tags || [];
   const isDatabasePost = Boolean(currentPost.created_at);
 
   if (isDeleted) {
@@ -172,72 +190,72 @@ export default function PostCard({ post, aiSummaryEnabled }) {
 
   return (
     <article
-      id={`post-${post.id}`}
+      id={`post-${currentPost.id}`}
       className="post-card p-5 animate-fade-in"
-      aria-label={`Post: ${post.title}`}
+      aria-label={`Post: ${currentPost.title}`}
     >
-      {/* ── Pinned Badge ─────────────────────────────────── */}
-      {post.isPinned && (
+      {currentPost.isPinned && (
         <div className="flex items-center gap-1.5 mb-3 text-xs font-bold pinned-label">
           <PinIcon />
           Featured Post
         </div>
       )}
 
-      {/* ── AI Summary Banner ─────────────────────────────── */}
-      {aiSummaryEnabled && AI_SUMMARIES[post.id] && (
+      {aiSummaryEnabled && AI_SUMMARIES[currentPost.id] && (
         <div
           className="ai-summary-banner rounded-xl px-4 py-2.5 mb-4 text-xs leading-relaxed animate-fade-in"
           style={{
-            color: "var(--color-accent-light)",
+            color: 'var(--color-accent-light)',
           }}
         >
-          {AI_SUMMARIES[post.id]}
+          {AI_SUMMARIES[currentPost.id]}
         </div>
       )}
 
-      {/* ── Post Header ───────────────────────────────────── */}
       <div className="flex items-start gap-3 mb-3">
         <img
           src={authorAvatar}
           alt={authorName}
           className="w-10 h-10 rounded-full avatar-ring shrink-0"
         />
+
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
               {authorName}
             </span>
+
             {authorHandle && (
               <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 {authorHandle}
               </span>
             )}
+
             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               · {postTime}
             </span>
           </div>
         </div>
 
-        {/* Report Button */}
         <button
-          id={`report-post-${post.id}`}
+          id={`report-post-${currentPost.id}`}
           onClick={handleReport}
           disabled={reported}
           className="shrink-0 p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
           style={{ color: reported ? '#F87171' : 'var(--color-text-muted)' }}
           title={reported ? 'Post reported' : 'Report post'}
-          aria-label={`Report post: ${post.title}`}
+          aria-label={`Report post: ${currentPost.title}`}
         >
           {showReportConfirm ? (
-            <span className="text-xs font-semibold" style={{ color: '#F87171' }}>Reported!</span>
+            <span className="text-xs font-semibold" style={{ color: '#F87171' }}>
+              Reported!
+            </span>
           ) : (
             <ReportIcon />
           )}
         </button>
       </div>
 
-      {/* ── Post Title ────────────────────────────────────── */}
       {isEditing ? (
         <input
           value={editTitle}
@@ -258,7 +276,6 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </h2>
       )}
 
-      {/* ── Post Body ─────────────────────────────────────── */}
       {isEditing ? (
         <div className="mb-4">
           <textarea
@@ -274,11 +291,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           />
 
           <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleSaveEdit}
-              disabled={isSaving}
-              className="vote-btn"
-            >
+            <button onClick={handleSaveEdit} disabled={isSaving} className="vote-btn">
               {isSaving ? 'Saving...' : 'Save'}
             </button>
 
@@ -303,10 +316,9 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </p>
       )}
 
-      {/* ── Tags/Flairs ───────────────────────────────────── */}
       {postTags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
-          {postTags.map(tag => (
+          {postTags.map((tag) => (
             <span
               key={tag}
               className="tag-chip"
@@ -318,11 +330,9 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </div>
       )}
 
-      {/* ── Action Bar ────────────────────────────────────── */}
       <div className="flex items-center gap-1 flex-wrap">
-        {/* Upvote */}
         <button
-          id={`upvote-post-${post.id}`}
+          id={`upvote-post-${currentPost.id}`}
           onClick={() => handleVote('up')}
           className={`vote-btn ${voteState === 'up' ? 'upvoted' : ''}`}
           aria-label={`Upvote post. Current count: ${upvoteCount}`}
@@ -332,9 +342,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           {upvoteCount}
         </button>
 
-        {/* Downvote */}
         <button
-          id={`downvote-post-${post.id}`}
+          id={`downvote-post-${currentPost.id}`}
           onClick={() => handleVote('down')}
           className={`vote-btn ${voteState === 'down' ? 'downvoted' : ''}`}
           aria-label={`Downvote post. Current count: ${downvoteCount}`}
@@ -344,10 +353,9 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           {downvoteCount}
         </button>
 
-        {/* Comments Toggle */}
         <button
-          id={`comments-toggle-${post.id}`}
-          onClick={() => setCommentsOpen(p => !p)}
+          id={`comments-toggle-${currentPost.id}`}
+          onClick={() => setCommentsOpen((p) => !p)}
           className="vote-btn ml-1"
           aria-expanded={commentsOpen}
           aria-label={`${commentsOpen ? 'Hide' : 'Show'} comments. ${commentCount} comments`}
@@ -356,9 +364,8 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           {commentCount} {commentsOpen ? 'Hide' : 'Comments'}
         </button>
 
-        {/* Share */}
         <button
-          id={`share-post-${post.id}`}
+          id={`share-post-${currentPost.id}`}
           className="vote-btn"
           aria-label="Share post"
           onClick={() => navigator.clipboard?.writeText(window.location.href)}
@@ -368,33 +375,30 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </button>
 
         {isDatabasePost && (
-        <>
-          {/* Edit */}
-          <button
-            id={`edit-post-${currentPost.id}`}
-            onClick={() => setIsEditing(true)}
-            className="vote-btn"
-            aria-label="Edit post"
-          >
-            Edit
-          </button>
+          <>
+            <button
+              id={`edit-post-${currentPost.id}`}
+              onClick={() => setIsEditing(true)}
+              className="vote-btn"
+              aria-label="Edit post"
+            >
+              Edit
+            </button>
 
-          {/* Delete */}
-          <button
-            id={`delete-post-${currentPost.id}`}
-            onClick={handleDeletePost}
-            className="vote-btn"
-            aria-label="Delete post"
-          >
-            Delete
-          </button>
-        </>
-      )}
+            <button
+              id={`delete-post-${currentPost.id}`}
+              onClick={handleDeletePost}
+              className="vote-btn"
+              aria-label="Delete post"
+            >
+              Delete
+            </button>
+          </>
+        )}
 
-        {/* Bookmark */}
         <button
-          id={`bookmark-post-${post.id}`}
-          onClick={() => setBookmarked(p => !p)}
+          id={`bookmark-post-${currentPost.id}`}
+          onClick={() => setBookmarked((p) => !p)}
           className={`vote-btn ml-auto ${bookmarked ? 'upvoted' : ''}`}
           aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark post'}
           aria-pressed={bookmarked}
@@ -404,9 +408,11 @@ export default function PostCard({ post, aiSummaryEnabled }) {
         </button>
       </div>
 
-      {/* ── Comment Section ───────────────────────────────── */}
       {commentsOpen && (
-        <CommentSection comments={comments} postId={post.id} />
+        <CommentSection
+          postId={currentPost.id}
+          onCommentCountChange={setCommentCount}
+        />
       )}
     </article>
   );
