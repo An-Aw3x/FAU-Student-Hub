@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // ── Icons ──────────────────────────────────────────────────
 const ThumbUpIcon = ({ filled }) => (
@@ -7,22 +7,166 @@ const ThumbUpIcon = ({ filled }) => (
   </svg>
 );
 
-export default function CommentSection({ comments, postId }) {
+const parseCommentTimestamp = (createdAt) => {
+  if (!createdAt) return null;
+
+  if (createdAt instanceof Date) return createdAt;
+
+  if (typeof createdAt === 'number') return new Date(createdAt);
+
+  if (typeof createdAt === 'string') {
+    const trimmed = createdAt.trim();
+
+    const sqliteMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?$/);
+    if (sqliteMatch) {
+      const [, year, month, day, hour, minute, second] = sqliteMatch;
+      const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    const normalized = trimmed.replace(' ', 'T');
+    const parsed = new Date(normalized);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    const fallback = new Date(trimmed);
+    if (!Number.isNaN(fallback.getTime())) return fallback;
+  }
+
+  return null;
+};
+
+const formatCommentTime = (createdAt) => {
+  const date = parseCommentTimestamp(createdAt);
+  if (!date) return 'just now';
+
+  const now = new Date();
+  const diffMinutes = Math.max(0, Math.floor((now - date) / 60000));
+
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes === 1) return '1 minute ago';
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours === 1) return '1 hour ago';
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+};
+
+// ── Comment Section Component ───────────────────────────────
+export default function CommentSection({ postId, onCommentCountChange }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [likedComments, setLikedComments] = useState({});
   const [newComment, setNewComment] = useState('');
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadComments() {
+      try {
+        setLoading(true);
+        setError('');
+        setComments([]);
+
+        const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`);
+        if (!response.ok) {
+          throw new Error('Could not load comments.');
+        }
+        const data = await response.json();
+
+        const formattedComments = [...data]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .map(comment => ({
+            id: comment.id,
+            user: {
+              name: comment.username,
+              handle: `@${comment.username}`,
+              avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${comment.username}&backgroundColor=e0f2fe`
+            },
+            text: comment.content,
+            time: formatCommentTime(comment.created_at),
+            likes: 0
+          }));
+
+        if (isMounted) {
+          setComments(formattedComments);
+          onCommentCountChange?.(formattedComments.length);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message);
+          setComments([]);
+          onCommentCountChange?.(0);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadComments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [postId, onCommentCountChange]);
 
   const toggleLike = (commentId) => {
     setLikedComments(prev => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
-  const handleCommentSubmit = (e) => {
+  // Handle new comment submission
+  const handleCommentSubmit = async (e) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
-    // In real app: POST to API
-    setNewComment('');
+    const trimmedComment = newComment.trim();
+    if (!trimmedComment) return;
+    try {
+      setError('');
+      const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: trimmedComment, username: 'Anonymous' }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to post comment.');
+      }
+      const createdComment = await response.json();
+
+      const formattedComment = {
+        id: createdComment.id,
+        user: {
+          name: createdComment.username,
+          handle: `@${createdComment.username}`,
+          avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${createdComment.username}&backgroundColor=e0f2fe`
+        },
+        time: formatCommentTime(createdComment.created_at || new Date().toISOString()),
+        text: createdComment.content,
+        likes: 0
+      };
+
+      setComments(prev => {
+        const nextComments = [formattedComment, ...prev];
+        onCommentCountChange?.(nextComments.length);
+        return nextComments;
+      });
+      setNewComment('');
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
+  // Render the comment section
   return (
     <div className="mt-4 pt-4 animate-fade-in" style={{ borderTop: '1px solid var(--color-border)' }}>
       {/* ── Add Comment ────────────────────────────────────── */}
@@ -59,7 +203,15 @@ export default function CommentSection({ comments, postId }) {
         </div>
       </form>
 
+
+
       {/* ── Comment List ───────────────────────────────────── */}
+      {loading && <p className="text-sm text-[color:var(--color-text-muted)]">Loading comments...</p>}
+      {error && <p className="text-sm text-[color:var(--color-error)]">{error}</p>}
+      {!loading && !error && comments.length === 0 && (
+        <p className="text-sm text-[color:var(--color-text-muted)]">No comments yet. Be the first to comment!</p>
+      )}
+
       <div className="flex flex-col gap-4">
         {comments.map(comment => (
           <div key={comment.id} className="flex gap-3">

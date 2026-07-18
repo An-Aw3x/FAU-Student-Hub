@@ -35,7 +35,7 @@ export const MOCK_COMMENTS = [
 
 export const MOCK_POSTS = [
   {
-    id: 1,
+    id: 'mock1',
     user: MOCK_USERS[0],
     title: '📢 Everything you need to know about off-campus housing near Boca campus',
     body: 'After spending 3 semesters trying to figure out housing near FAU Boca, I put together this comprehensive guide. I cover Abacoa, Palmetto Dunes, University Village, and a few hidden gems that are walking distance to campus. Prices range from $850–$1,400/mo for a single room. Happy to answer any questions in the comments!',
@@ -48,7 +48,7 @@ export const MOCK_POSTS = [
     comments: MOCK_COMMENTS,
   },
   {
-    id: 2,
+    id: 'mock2',
     user: MOCK_USERS[1],
     title: 'COP3530 (Data Structures) with Prof. Tavana — worth it or nah?',
     body: 'I\'m registering for Fall and COP3530 is required for my CS degree. I\'ve heard mixed reviews about this section. The workload sounds intense but people say you come out really prepared. Anyone have recent experience with this course? Any tips on getting through the projects?',
@@ -64,7 +64,7 @@ export const MOCK_POSTS = [
     ],
   },
   {
-    id: 3,
+    id: 'mock3',
     user: MOCK_USERS[2],
     title: 'FAU career fair next Thursday — companies confirmed so far 🎉',
     body: 'Just got the confirmed list from the Career Center. Some highlights: Amazon, Chewy, FPL, Northrop Grumman, and a dozen local startups. The event is in the Breezeway from 10am–3pm. Bring printed resumes and dress business casual. Pro tip: arrive at 10am sharp before it gets crowded!',
@@ -80,7 +80,7 @@ export const MOCK_POSTS = [
     ],
   },
   {
-    id: 4,
+    id: 'mock4',
     user: MOCK_USERS[3],
     title: 'Parking situation is absolutely BRUTAL this semester 😤',
     body: 'I pay $200 a semester for a parking pass and I still can\'t find a spot before 9am. The garage on Innovation way is always full by 7:45. Seriously considering dropping my early classes or just riding a bike. Has anyone found a workaround? Is the shuttle from the FAU stadium actually reliable?',
@@ -96,7 +96,7 @@ export const MOCK_POSTS = [
     ],
   },
   {
-    id: 5,
+    id: 'mock5',
     user: MOCK_USERS[4],
     title: 'Best places to eat on/near campus under $10 🍕',
     body: 'Budget eats guide for fellow broke college students. On campus: Chick-fil-A in the Student Union is always a win, the Fresh Food Company buffet is great value if you have a meal plan. Off campus: Bagel Factory on Glades is 🔥, and La Bamba burritos are huge for $8. Drop your recs below!',
@@ -111,7 +111,7 @@ export const MOCK_POSTS = [
     ],
   },
   {
-    id: 6,
+    id: 'mock6',
     user: MOCK_USERS[5],
     title: 'Anyone know if the 24-hour study rooms in Wimberly Library are still a thing?',
     body: 'During finals last semester I swear those rooms were open 24/7. Now I\'m seeing conflicting info. My study group needs a spot at like 2am during finals week. Library website is not updated. Can anyone confirm?',
@@ -142,10 +142,10 @@ export const LOGGED_IN_USER = {
 };
 
 export const AI_SUMMARIES = {
-  1: '🦉 AI Summary: This post discusses affordable housing options within walking/biking distance of FAU Boca. Key picks: Palmetto Dunes (~$900/mo) and University Village (~$1,100/mo). Commenters recommend applying early.',
-  2: '🦉 AI Summary: Mixed reviews on COP3530. Most agree the course is rigorous but highly rewarding. Top tip: begin all projects at least 1 week before the due date.',
-  3: '🦉 AI Summary: FAU career fair on Thursday in the Breezeway. Amazon, Chewy, and FPL are confirmed. Open to all majors. Arrive early for best results.',
-  4: '🦉 AI Summary: Widespread frustration over FAU parking. The stadium shuttle and cycling are the top community-recommended alternatives.',
-  5: '🦉 AI Summary: Top budget picks near campus: Bagel Factory, La Bamba, and Chick-fil-A. Meal plan holders should prioritize Fresh Food Company for value.',
-  6: '🦉 AI Summary: Confirmed — Wimberly Library rooms 212 & 214 are 24/7 during finals week. Reserve via LibCal in advance.',
+  'mock1': '🦉 AI Summary: This post discusses affordable housing options within walking/biking distance of FAU Boca. Key picks: Palmetto Dunes (~$900/mo) and University Village (~$1,100/mo). Commenters recommend applying early.',
+  'mock2': '🦉 AI Summary: Mixed reviews on COP3530. Most agree the course is rigorous but highly rewarding. Top tip: begin all projects at least 1 week before the due date.',
+  'mock3': '🦉 AI Summary: FAU career fair on Thursday in the Breezeway. Amazon, Chewy, and FPL are confirmed. Open to all majors. Arrive early for best results.',
+  'mock4': '🦉 AI Summary: Widespread frustration over FAU parking. The stadium shuttle and cycling are the top community-recommended alternatives.',
+  'mock5': '🦉 AI Summary: Top budget picks near campus: Bagel Factory, La Bamba, and Chick-fil-A. Meal plan holders should prioritize Fresh Food Company for value.',
+  'mock6': '🦉 AI Summary: Confirmed — Wimberly Library rooms 212 & 214 are 24/7 during finals week. Reserve via LibCal in advance.',
 };

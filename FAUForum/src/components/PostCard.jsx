@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CommentSection from './CommentSection';
 import { AI_SUMMARIES } from '../data/mockData';
 
@@ -67,9 +67,14 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const [bookmarked, setBookmarked]     = useState(false);
   const [reported, setReported]         = useState(false);
   const [showReportConfirm, setShowReportConfirm] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
 
   const upvoteCount   = (post.upvotes || 0)   + (voteState === 'up'   ? 1 : 0);
   const downvoteCount = (post.downvotes || 0) + (voteState === 'down' ? 1 : 0);
+
+  useEffect(() => {
+    setCommentCount(post.commentCount || 0);
+  }, [post.id, post.commentCount]);
 
   const handleVote = (dir) => {
     setVoteState(prev => prev === dir ? 'none' : dir);
@@ -90,8 +95,6 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const postBody     = post.body || post.content || '';
   const postTime     = post.timeAgo || (post.created_at ? new Date(post.created_at).toLocaleDateString() : 'just now');
   const postTags     = post.tags || [];
-  const commentCount = post.commentCount || 0;
-  const comments     = post.comments || [];
 
   return (
     <article
@@ -253,7 +256,7 @@ export default function PostCard({ post, aiSummaryEnabled }) {
 
       {/* ── Comment Section ───────────────────────────────── */}
       {commentsOpen && (
-        <CommentSection comments={comments} postId={post.id} />
+        <CommentSection postId={post.id} onCommentCountChange={setCommentCount} />
       )}
     </article>
   );
