@@ -131,6 +131,7 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount || 0);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
 
   useEffect(() => {
     setCurrentPost(post);
@@ -372,6 +373,55 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
       console.error(error);
       alert('Could not update saved post.');
     }
+  };
+
+  const getPostLink = () => {
+    return `${window.location.origin}${window.location.pathname}#post-${currentPost.id}`;
+  };
+
+  const copyPostLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPostLink());
+      setShareMenuOpen(false);
+      alert('Post link copied!');
+    } catch (error) {
+      console.error(error);
+      alert('Could not copy link.');
+    }
+  };
+
+  const shareToX = () => {
+    const text = encodeURIComponent(currentPost.title || 'Check out this OwlNet post');
+    const url = encodeURIComponent(getPostLink());
+
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    setShareMenuOpen(false);
+  };
+
+  const shareToWhatsApp = () => {
+    const message = encodeURIComponent(`${currentPost.title || 'Check out this OwlNet post'} ${getPostLink()}`);
+
+    window.open(`https://wa.me/?text=${message}`, '_blank');
+    setShareMenuOpen(false);
+  };
+
+  const shareMoreOptions = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: currentPost.title || 'OwlNet post',
+          text: postBody,
+          url: getPostLink(),
+        });
+        setShareMenuOpen(false);
+      } catch (error) {
+        console.error(error);
+      }
+
+      return;
+    }
+
+    copyPostLink();
   };
 
   const handleTogglePin = async () => {
@@ -637,25 +687,61 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
           {commentCount} {commentsOpen ? 'Hide' : 'Comments'}
         </button>
 
-        <button
-          id={`share-post-${currentPost.id}`}
-          className="vote-btn"
-          aria-label="Share post"
-          onClick={async () => {
-            const postLink = `${window.location.origin}${window.location.pathname}#post-${currentPost.id}`;
+        <div className="relative">
+          <button
+            id={`share-post-${currentPost.id}`}
+            className="vote-btn"
+            aria-label="Share post"
+            aria-expanded={shareMenuOpen}
+            onClick={() => setShareMenuOpen(prev => !prev)}
+          >
+            <ShareIcon />
+            Share
+          </button>
 
-            try {
-              await navigator.clipboard.writeText(postLink);
-              alert('Post link copied!');
-            } catch (error) {
-              console.error(error);
-              alert('Could not copy link.');
-            }
-          }}
-        >
-          <ShareIcon />
-          Share
-        </button>
+          {shareMenuOpen && (
+            <div
+              className="absolute left-0 bottom-10 z-50 w-56 rounded-2xl p-2 shadow-xl"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={copyPostLink}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm font-semibold hover:opacity-80"
+              >
+                🔗 Copy link
+              </button>
+
+              <button
+                type="button"
+                onClick={shareToX}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm font-semibold hover:opacity-80"
+              >
+                𝕏 Share to X
+              </button>
+
+              <button
+                type="button"
+                onClick={shareToWhatsApp}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm font-semibold hover:opacity-80"
+              >
+                🟢 WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={shareMoreOptions}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm font-semibold hover:opacity-80"
+              >
+                ⋯ More options
+              </button>
+            </div>
+          )}
+        </div>
 
         {canAdminManagePost && (
           <>
