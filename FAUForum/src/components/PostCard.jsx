@@ -130,14 +130,14 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
   const [reported, setReported] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
+  const [commentCount, setCommentCount] = useState(post.commentCount || post.comment_count || 0);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
 
   useEffect(() => {
     setCurrentPost(post);
     setEditTitle(post.title || '');
     setEditBody(post.body || post.content || '');
-    setCommentCount(post.commentCount || 0);
+    setCommentCount(post.commentCount || post.comment_count || 0);
     setIsDeleted(false);
     setIsEditing(false);
     setReportModalOpen(false);

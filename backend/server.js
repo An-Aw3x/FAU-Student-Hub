@@ -189,19 +189,34 @@ app.get("/api/health", (req, res) => {
 
 // Get all posts
 app.get("/api/posts", (req, res) => {
-  db.all("SELECT * FROM posts ORDER BY created_at DESC", [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  db.all(
+    `
+    SELECT 
+      posts.*,
+      COUNT(comments.id) AS comment_count
+    FROM posts
+    LEFT JOIN comments
+      ON comments.post_id = posts.id
+    GROUP BY posts.id
+    ORDER BY posts.is_pinned DESC, posts.created_at DESC
+    `,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      const posts = rows.map((row) => ({
+        ...row,
+        body: row.content,
+        commentCount: row.comment_count || 0,
+        isPinned: Boolean(row.is_pinned),
+        tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+      }));
+
+      res.json(posts);
     }
-
-    const posts = rows.map((row) => ({
-      ...row,
-      isPinned: Boolean(row.is_pinned),
-      tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
-    }));
-
-    res.json(posts);
-  });
+  );
 });
 
 // Create a new post
