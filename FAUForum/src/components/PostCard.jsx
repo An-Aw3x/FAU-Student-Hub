@@ -92,11 +92,51 @@ export default function PostCard({ post, aiSummaryEnabled }) {
     setIsEditing(false);
   }, [post]);
 
-  const upvoteCount = (currentPost.upvotes || 0) + (voteState === 'up' ? 1 : 0);
-  const downvoteCount = (currentPost.downvotes || 0) + (voteState === 'down' ? 1 : 0);
+  const isDatabasePost = Boolean(currentPost.created_at);
 
-  const handleVote = (dir) => {
-    setVoteState((prev) => (prev === dir ? 'none' : dir));
+  const upvoteCount = isDatabasePost
+    ? currentPost.upvotes || 0
+    : (currentPost.upvotes || 0) + (voteState === 'up' ? 1 : 0);
+
+  const downvoteCount = isDatabasePost
+    ? currentPost.downvotes || 0
+    : (currentPost.downvotes || 0) + (voteState === 'down' ? 1 : 0);
+
+  const handleVote = async (dir) => {
+    // Mock posts can still use local frontend voting
+    if (!isDatabasePost) {
+      setVoteState(prev => prev === dir ? 'none' : dir);
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/posts/${currentPost.id}/vote`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          voteType: dir,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to vote');
+      }
+
+      const updatedPost = await response.json();
+
+      setCurrentPost({
+        ...currentPost,
+        ...updatedPost,
+        body: updatedPost.content,
+      });
+
+      setVoteState(dir);
+    } catch (error) {
+      console.error(error);
+      alert('Could not save vote.');
+    }
   };
 
   const handleReport = () => {
@@ -182,7 +222,6 @@ export default function PostCard({ post, aiSummaryEnabled }) {
   const postBody = currentPost.body || currentPost.content || '';
   const postTime = currentPost.timeAgo || (currentPost.created_at ? new Date(currentPost.created_at).toLocaleDateString() : 'just now');
   const postTags = currentPost.tags || [];
-  const isDatabasePost = Boolean(currentPost.created_at);
 
   if (isDeleted) {
     return null;
