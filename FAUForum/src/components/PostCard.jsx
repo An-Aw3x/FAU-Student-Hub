@@ -557,7 +557,17 @@ export default function PostCard({ post, aiSummaryEnabled }) {
           id={`share-post-${currentPost.id}`}
           className="vote-btn"
           aria-label="Share post"
-          onClick={() => navigator.clipboard?.writeText(window.location.href)}
+          onClick={async () => {
+            const postLink = `${window.location.origin}${window.location.pathname}#post-${currentPost.id}`;
+
+            try {
+              await navigator.clipboard.writeText(postLink);
+              alert('Post link copied!');
+            } catch (error) {
+              console.error(error);
+              alert('Could not copy link.');
+            }
+          }}
         >
           <ShareIcon />
           Share
