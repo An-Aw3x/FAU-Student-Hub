@@ -355,6 +355,56 @@ app.patch("/api/comments/:id/report", (req, res) => {
   );
 });
 
+// Admin: get all reported posts and comments
+app.get("/api/reports", (req, res) => {
+  const reportedPostsQuery = `
+    SELECT 
+      id,
+      title,
+      content,
+      username,
+      reports,
+      report_reason,
+      created_at
+    FROM posts
+    WHERE COALESCE(reports, 0) > 0
+    ORDER BY reports DESC, created_at DESC
+  `;
+
+  const reportedCommentsQuery = `
+    SELECT 
+      comments.id,
+      comments.post_id,
+      comments.username,
+      comments.content,
+      comments.reports,
+      comments.report_reason,
+      comments.created_at,
+      posts.title AS post_title
+    FROM comments
+    LEFT JOIN posts ON comments.post_id = posts.id
+    WHERE COALESCE(comments.reports, 0) > 0
+    ORDER BY comments.reports DESC, comments.created_at DESC
+  `;
+
+  db.all(reportedPostsQuery, [], (err, reportedPosts) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    db.all(reportedCommentsQuery, [], (err, reportedComments) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.json({
+        reportedPosts,
+        reportedComments,
+      });
+    });
+  });
+});
+
 // Delete a post
 app.delete("/api/posts/:id", (req, res) => {
   const { id } = req.params;
