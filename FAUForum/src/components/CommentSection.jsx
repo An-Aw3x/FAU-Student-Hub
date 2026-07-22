@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Icons ──────────────────────────────────────────────────
 const ThumbUpIcon = ({ filled }) => (
   <svg width="14" height="14" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
   </svg>
 );
+
+const ReportIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M4 4v16" />
+    <path d="M4 4h13l-1.5 5L17 14H4" />
+  </svg>
+);
+
+const REPORT_REASONS = [
+  { value: 'spam', label: 'Spam' },
+  { value: 'harassment', label: 'Harassment or bullying' },
+  { value: 'nudity', label: 'Nudity or sexual content' },
+  { value: 'hate', label: 'Hate speech' },
+  { value: 'violence', label: 'Violence or threats' },
+  { value: 'other', label: 'Other' },
+];
 
 const parseCommentTimestamp = (createdAt) => {
   if (!createdAt) return null;
@@ -53,7 +70,7 @@ const formatCommentTime = (createdAt) => {
   return date.toLocaleDateString([], {
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
   });
 };
 
@@ -61,6 +78,9 @@ const formatCommentTime = (createdAt) => {
 export default function CommentSection({ postId, onCommentCountChange }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [likedComments, setLikedComments] = useState({});
+  const [reportedComments, setReportedComments] = useState({});
+  const [reportingCommentId, setReportingCommentId] = useState(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,10 +95,14 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         setError('');
         setComments([]);
 
-        const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`);
+        const response = await fetch(
+          `http://localhost:3001/api/posts/${postId}/comments?username=Jamie%20Owls`
+        );
+
         if (!response.ok) {
           throw new Error('Could not load comments.');
         }
+
         const data = await response.json();
 
         const formattedComments = [...data]
@@ -88,15 +112,27 @@ export default function CommentSection({ postId, onCommentCountChange }) {
             user: {
               name: comment.username,
               handle: `@${comment.username}`,
-              avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${comment.username}&backgroundColor=e0f2fe`
+              avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${comment.username}&backgroundColor=e0f2fe`,
             },
             text: comment.content,
             time: formatCommentTime(comment.created_at),
-            likes: 0
+            likes: comment.likes || 0,
+            likedByCurrentUser: Boolean(comment.liked_by_current_user),
+            reports: comment.reports || 0,
+            reportReason: comment.report_reason || '',
           }));
+
+        const likedMap = {};
+
+        formattedComments.forEach(comment => {
+          if (comment.likedByCurrentUser) {
+            likedMap[comment.id] = true;
+          }
+        });
 
         if (isMounted) {
           setComments(formattedComments);
+          setLikedComments(likedMap);
           onCommentCountChange?.(formattedComments.length);
         }
       } catch (err) {
@@ -119,28 +155,119 @@ export default function CommentSection({ postId, onCommentCountChange }) {
     };
   }, [postId, onCommentCountChange]);
 
-  const toggleLike = (commentId) => {
-    setLikedComments(prev => ({ ...prev, [commentId]: !prev[commentId] }));
+  const toggleLike = async (commentId) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/comments/${commentId}/like`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: 'Jamie Owls',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to like comment.');
+      }
+
+      const updatedComment = await response.json();
+
+      setComments(prev =>
+        prev.map(comment =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likes: updatedComment.likes || 0,
+              }
+            : comment
+        )
+      );
+
+      setLikedComments(prev => ({
+        ...prev,
+        [commentId]: updatedComment.liked,
+      }));
+    } catch (err) {
+      console.error(err);
+      alert('Could not update comment like.');
+    }
+  };
+
+  const handleReportComment = async (reason) => {
+    if (!reportingCommentId || reportedComments[reportingCommentId]) {
+      return;
+    }
+
+    try {
+      setReportSubmitting(true);
+
+      const response = await fetch(`http://localhost:3001/api/comments/${reportingCommentId}/report`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to report comment.');
+      }
+
+      const updatedComment = await response.json();
+
+      setComments(prev =>
+        prev.map(comment =>
+          comment.id === reportingCommentId
+            ? {
+                ...comment,
+                reports: updatedComment.reports,
+                reportReason: updatedComment.report_reason,
+              }
+            : comment
+        )
+      );
+
+      setReportedComments(prev => ({
+        ...prev,
+        [reportingCommentId]: true,
+      }));
+
+      setReportingCommentId(null);
+    } catch (err) {
+      console.error(err);
+      alert('Could not report the comment.');
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   // Handle new comment submission
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
+
     const trimmedComment = newComment.trim();
     if (!trimmedComment) return;
+
     try {
       setError('');
+
       const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: trimmedComment, username: 'Anonymous' }),
+        body: JSON.stringify({
+          content: trimmedComment,
+          username: 'Anonymous',
+        }),
       });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to post comment.');
       }
+
       const createdComment = await response.json();
 
       const formattedComment = {
@@ -148,11 +275,13 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         user: {
           name: createdComment.username,
           handle: `@${createdComment.username}`,
-          avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${createdComment.username}&backgroundColor=e0f2fe`
+          avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${createdComment.username}&backgroundColor=e0f2fe`,
         },
         time: formatCommentTime(createdComment.created_at || new Date().toISOString()),
         text: createdComment.content,
-        likes: 0
+        likes: 0,
+        reports: 0,
+        reportReason: '',
       };
 
       setComments(prev => {
@@ -160,6 +289,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         onCommentCountChange?.(nextComments.length);
         return nextComments;
       });
+
       setNewComment('');
     } catch (err) {
       setError(err.message);
@@ -180,8 +310,14 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           alt="Your avatar"
           className="w-8 h-8 rounded-full avatar-ring shrink-0 mt-1"
         />
-        <div className="flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-3"
-          style={{ background: 'var(--color-surface-3)', border: '1px solid var(--color-border)' }}>
+
+        <div
+          className="flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-3"
+          style={{
+            background: 'var(--color-surface-3)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
           <input
             type="text"
             placeholder="Write a comment…"
@@ -191,11 +327,15 @@ export default function CommentSection({ postId, onCommentCountChange }) {
             aria-label="Add a comment"
             id={`comment-input-${postId}`}
           />
+
           {newComment.trim() && (
             <button
               type="submit"
               className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 transition-all"
-              style={{ background: 'var(--color-owl-blue)', color: 'white' }}
+              style={{
+                background: 'var(--color-owl-blue)',
+                color: 'white',
+              }}
             >
               Post
             </button>
@@ -203,13 +343,23 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         </div>
       </form>
 
-
-
       {/* ── Comment List ───────────────────────────────────── */}
-      {loading && <p className="text-sm text-[color:var(--color-text-muted)]">Loading comments...</p>}
-      {error && <p className="text-sm text-[color:var(--color-error)]">{error}</p>}
+      {loading && (
+        <p className="text-sm text-[color:var(--color-text-muted)]">
+          Loading comments...
+        </p>
+      )}
+
+      {error && (
+        <p className="text-sm text-[color:var(--color-error)]">
+          {error}
+        </p>
+      )}
+
       {!loading && !error && comments.length === 0 && (
-        <p className="text-sm text-[color:var(--color-text-muted)]">No comments yet. Be the first to comment!</p>
+        <p className="text-sm text-[color:var(--color-text-muted)]">
+          No comments yet. Be the first to comment!
+        </p>
       )}
 
       <div className="flex flex-col gap-4">
@@ -220,23 +370,38 @@ export default function CommentSection({ postId, onCommentCountChange }) {
               alt={comment.user.name}
               className="w-7 h-7 rounded-full avatar-ring shrink-0 mt-0.5"
             />
+
             <div className="flex-1 min-w-0">
               <div className="comment-item">
                 {/* Comment Header */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                  <span
+                    className="text-xs font-bold"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
                     {comment.user.name}
                   </span>
-                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+
+                  <span
+                    className="text-xs"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
                     {comment.user.handle}
                   </span>
-                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+
+                  <span
+                    className="text-xs"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
                     · {comment.time}
                   </span>
                 </div>
 
                 {/* Comment Body */}
-                <p className="text-sm leading-relaxed mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                <p
+                  className="text-sm leading-relaxed mb-2"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
                   {comment.text}
                 </p>
 
@@ -245,12 +410,16 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                   <button
                     id={`comment-like-${comment.id}`}
                     onClick={() => toggleLike(comment.id)}
-                    className={`flex items-center gap-1.5 text-xs font-semibold transition-all ${likedComments[comment.id] ? 'text-[color:var(--color-upvote)]' : 'text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)]'}`}
+                    className={`flex items-center gap-1.5 text-xs font-semibold transition-all ${
+                      likedComments[comment.id]
+                        ? 'text-[color:var(--color-upvote)]'
+                        : 'text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)]'
+                    }`}
                     aria-label={`Like comment by ${comment.user.name}`}
                     aria-pressed={!!likedComments[comment.id]}
                   >
                     <ThumbUpIcon filled={likedComments[comment.id]} />
-                    {comment.likes + (likedComments[comment.id] ? 1 : 0)}
+                    {comment.likes}
                   </button>
 
                   <button
@@ -261,6 +430,21 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                   >
                     Reply
                   </button>
+
+                  <button
+                    id={`comment-report-${comment.id}`}
+                    onClick={() => setReportingCommentId(comment.id)}
+                    disabled={!!reportedComments[comment.id]}
+                    className="flex items-center gap-1 text-xs font-semibold transition-all hover:text-[color:var(--color-text-primary)]"
+                    style={{
+                      color: reportedComments[comment.id]
+                        ? '#F87171'
+                        : 'var(--color-text-muted)',
+                    }}
+                  >
+                    <ReportIcon />
+                    {reportedComments[comment.id] ? 'Reported' : 'Report'}
+                  </button>
                 </div>
 
                 {/* Inline Reply Box */}
@@ -270,13 +454,21 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                       type="text"
                       placeholder={`Reply to ${comment.user.name}…`}
                       className="flex-1 text-xs px-3 py-2 rounded-xl"
-                      style={{ background: 'var(--color-surface-4)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+                      style={{
+                        background: 'var(--color-surface-4)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-text-primary)',
+                      }}
                       id={`reply-input-${comment.id}`}
                       aria-label={`Reply to ${comment.user.name}`}
                     />
+
                     <button
                       className="text-xs font-bold px-3 py-1.5 rounded-xl"
-                      style={{ background: 'var(--color-owl-blue)', color: 'white' }}
+                      style={{
+                        background: 'var(--color-owl-blue)',
+                        color: 'white',
+                      }}
                       onClick={() => setReplyingTo(null)}
                     >
                       Send
@@ -288,6 +480,69 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           </div>
         ))}
       </div>
+
+      {/* ── Report Comment Popup ───────────────────────────── */}
+      {reportingCommentId &&
+        createPortal(
+          <div
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{
+              background: 'rgba(0, 0, 0, 0.55)',
+              zIndex: 999999,
+            }}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl p-4 shadow-xl max-h-[80vh] overflow-y-auto"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                zIndex: 1000000,
+              }}
+            >
+              <h3 className="font-bold text-base mb-2">Report comment</h3>
+
+              <p
+                className="text-sm mb-4"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                Why are you reporting this comment?
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {REPORT_REASONS.map(reason => (
+                  <button
+                    key={reason.value}
+                    onClick={() => handleReportComment(reason.value)}
+                    disabled={reportSubmitting}
+                    className="text-left px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+                    style={{
+                      background: 'var(--color-surface-3)',
+                      color: 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    {reason.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setReportingCommentId(null)}
+                disabled={reportSubmitting}
+                className="mt-4 w-full px-3 py-2 rounded-xl text-sm font-bold"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

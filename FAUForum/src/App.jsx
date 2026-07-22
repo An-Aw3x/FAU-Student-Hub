@@ -4,6 +4,8 @@ import LeftSidebar  from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import PostCard     from './components/PostCard';
 import CreatePost   from './components/CreatePost';
+import SavedPosts   from './components/SavedPosts';
+import AdminReports from './components/AdminReports';
 import { MOCK_POSTS, CURRENT_USER, LOGGED_IN_USER } from './data/mockData';
 import './index.css';
 
@@ -11,14 +13,17 @@ export default function App() {
   // ── Auth state ──────────────────────────────────────────
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const currentUser = isLoggedIn ? LOGGED_IN_USER : CURRENT_USER;
+  const isAdmin = isLoggedIn && currentUser?.name === 'Jamie Owls';
 
   // ── UI state ────────────────────────────────────────────
   const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
   const [aiSummaryEnabled,  setAiSummaryEnabled]  = useState(false);
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
+  const [sortMode, setSortMode] = useState('hot');
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const [theme, setTheme] = useState("light");
+  const [activeView, setActiveView] = useState('feed');
 
   // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
@@ -45,12 +50,10 @@ export default function App() {
   const filteredPosts = useMemo(() => {
     let posts = allPosts;
 
-    // Tag filter
     if (activeTag !== 'all') {
       posts = posts.filter(p => (p.tags || []).includes(activeTag));
     }
 
-    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       posts = posts.filter(p =>
@@ -61,21 +64,53 @@ export default function App() {
       );
     }
 
-    // Pinned posts first
     return [...posts].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
 
-      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const getTime = (post) => {
+        if (!post.created_at) return 0;
+        return new Date(post.created_at).getTime();
+      };
 
-      return bTime - aTime;
+      const getScore = (post) => {
+        return (post.upvotes || 0) - (post.downvotes || 0);
+      };
+
+      const getHotScore = (post) => {
+        const score = getScore(post);
+        const time = getTime(post);
+
+        if (!time) return score;
+
+        const ageHours = Math.max(0, (Date.now() - time) / 3600000);
+        const recencyBoost = Math.max(0, 24 - ageHours) / 6;
+
+        return score + recencyBoost;
+      };
+
+      if (sortMode === 'new') {
+        return getTime(b) - getTime(a);
+      }
+
+      if (sortMode === 'top') {
+        const scoreDifference = getScore(b) - getScore(a);
+        if (scoreDifference !== 0) return scoreDifference;
+
+        return getTime(b) - getTime(a);
+      }
+
+      const hotDifference = getHotScore(b) - getHotScore(a);
+      if (hotDifference !== 0) return hotDifference;
+
+      return getTime(b) - getTime(a);
     });
-  }, [allPosts, activeTag, searchQuery]);
+  }, [allPosts, activeTag, searchQuery, sortMode]);
 
   const handleTagChange = (tagId) => {
     setActiveTag(tagId);
-    setMobileMenuOpen(false); // close sidebar on mobile after tag pick
+    setActiveView('feed');
+    setMobileMenuOpen(false);
   };
 
   const handleAuthToggle = () => {
@@ -87,6 +122,31 @@ export default function App() {
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
 
+  const handleOpenPostFromAdmin = (postId) => {
+    setActiveTag('all');
+    setSearchQuery('');
+    setActiveView('feed');
+
+    setTimeout(() => {
+      const postElement = document.getElementById(`post-${postId}`);
+
+      if (postElement) {
+        postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const oldShadow = postElement.style.boxShadow;
+        postElement.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.35)';
+
+        setTimeout(() => {
+          postElement.style.boxShadow = oldShadow;
+        }, 2000);
+      }
+    }, 150);
+  };
+
+  const handlePostDeletedFromAdmin = (postId) => {
+    setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
+  };
+
   const handleLoginPrompt = () => {
     setLoginPromptVisible(true);
     setTimeout(() => setLoginPromptVisible(false), 4000);
@@ -95,9 +155,9 @@ export default function App() {
   return (
     <div
       className={`min-h-screen ${theme}`}
-      style={{ backgroundColor: 'var(--color-surface)' }}>
-
-      {/* ── Navbar (fixed top) ──────────────────────────── */}
+      style={{ backgroundColor: 'var(--color-surface)' }}
+    >
+      {/* ── Navbar ──────────────────────────── */}
       <Navbar
         theme={theme}
         onThemeToggle={toggleTheme}
@@ -150,72 +210,137 @@ export default function App() {
           mobileOpen={mobileMenuOpen}
         />
 
-        {/* ── Main Feed ─────────────────────────────────── */}
+        {/* ── Main Area ─────────────────────────────────── */}
         <main
           id="main-feed"
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
           aria-label="Community feed"
         >
-          {/* Feed Header */}
-          <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-            <div>
-              <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text-primary)' }}>
-                {activeTag === 'all' ? '🏠 Community Forum' : `#${activeTag}`}
-              </h1>
-              <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
-                {searchQuery ? ` matching "${searchQuery}"` : ''}
-              </p>
-            </div>
-            {aiSummaryEnabled && (
-              <span
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-                style={{
-                  background: 'rgba(153, 200, 238, 0.12)',
-                  border: '1px solid rgba(115, 114, 201, 0.14)',
-                  color: 'var(--color-accent-light)',
-                }}
-              >
-                ✨ AI Features Enabled
-              </span>
-            )}
-          </div>
-
-          {/* Create Post */}
-          <div className="mb-5">
-            <CreatePost
-              isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
-              currentUserAvatar={currentUser.avatar}
-              onLoginPrompt={handleLoginPrompt}
-              onPostCreated={handlePostCreated}
+          {activeView === 'saved' ? (
+            <SavedPosts
+              isAdmin={isAdmin}
+              onBack={() => setActiveView('feed')}
             />
-          </div>
-
-          {/* Post Feed */}
-          {filteredPosts.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              {filteredPosts.map(post => (
-                <PostCard
-                  key={post.created_at ? `db-${post.id}` : `mock-${post.id}`}
-                  post={post}
-                  aiSummaryEnabled={aiSummaryEnabled}
-                />
-              ))}
-            </div>
+          ) : activeView === 'admin' ? (
+            <AdminReports
+              isAdmin={isAdmin}
+              onBack={() => setActiveView('feed')}
+              onOpenPost={handleOpenPostFromAdmin}
+              onPostDeleted={handlePostDeletedFromAdmin}
+            />
           ) : (
-            /* Empty state */
-            <div className="py-20 text-center animate-fade-in">
-              <div className="text-5xl mb-4">🦉</div>
-              <h2 className="font-display font-bold text-xl mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                No posts found
-              </h2>
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                {searchQuery
-                  ? `No results for "${searchQuery}". Try a different search.`
-                  : 'Be the first to post in this topic!'}
-              </p>
-            </div>
+            <>
+              {/* Feed Header */}
+              <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                <div>
+                  <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text-primary)' }}>
+                    {activeTag === 'all' ? '🏠 Community Forum' : `#${activeTag}`}
+                  </h1>
+
+                  <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                    {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
+                    {searchQuery ? ` matching "${searchQuery}"` : ''}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {['hot', 'new', 'top'].map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setSortMode(mode)}
+                        className={`vote-btn ${sortMode === mode ? 'upvoted' : ''}`}
+                      >
+                        {mode === 'hot' ? 'Hot 🔥' : mode === 'new' ? 'New' : 'Top'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {aiSummaryEnabled && (
+                    <span
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(153, 200, 238, 0.12)',
+                        border: '1px solid rgba(115, 114, 201, 0.14)',
+                        color: 'var(--color-accent-light)',
+                      }}
+                    >
+                      ✨ AI Features Enabled
+                    </span>
+                  )}
+
+                  <button
+                    onClick={() => setActiveView('saved')}
+                    className="vote-btn"
+                    aria-label="View saved posts"
+                  >
+                    🔖 Saved Posts
+                  </button>
+                  {aiSummaryEnabled && (
+                    <span
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(153, 200, 238, 0.12)',
+                        border: '1px solid rgba(115, 114, 201, 0.14)',
+                        color: 'var(--color-accent-light)',
+                      }}
+                    >
+                      ✨ AI Features Enabled
+                    </span>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      onClick={() => setActiveView('admin')}
+                      className="vote-btn"
+                      aria-label="View admin reports"
+                    >
+                      🛡️ Admin Reports
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Create Post */}
+              <div className="mb-5">
+                <CreatePost
+                  isLoggedIn={isLoggedIn}
+                  currentUser={currentUser}
+                  currentUserAvatar={currentUser.avatar}
+                  onLoginPrompt={handleLoginPrompt}
+                  onPostCreated={handlePostCreated}
+                />
+              </div>
+
+              {/* Post Feed */}
+              {filteredPosts.length > 0 ? (
+                <div className="flex flex-col gap-4">
+                  {filteredPosts.map(post => (
+                    <PostCard
+                      key={post.created_at ? `db-${post.id}` : `mock-${post.id}`}
+                      post={post}
+                      aiSummaryEnabled={aiSummaryEnabled}
+                      isAdmin={isAdmin}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center animate-fade-in">
+                  <div className="text-5xl mb-4">🦉</div>
+
+                  <h2 className="font-display font-bold text-xl mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                    No posts found
+                  </h2>
+
+                  <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    {searchQuery
+                      ? `No results for "${searchQuery}". Try a different search.`
+                      : 'Be the first to post in this topic!'}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </main>
 

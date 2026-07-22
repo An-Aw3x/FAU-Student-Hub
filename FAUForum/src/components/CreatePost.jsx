@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TAGS } from '../data/mockData';
 
 const ImageIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
     <polyline points="21 15 16 10 5 21" />
   </svg>
 );
 
 const LinkIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </svg>
 );
 
@@ -24,14 +26,23 @@ const TagIcon = () => (
 const AVAILABLE_TAGS = TAGS.filter(t => t.id !== 'all');
 
 export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar, onLoginPrompt, onPostCreated }) {
-  const [title, setTitle]           = useState('');
-  const [body, setBody]             = useState('');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [expanded, setExpanded]     = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
-  const [submitted, setSubmitted]   = useState(false);
+
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const imageInputRef = useRef(null);
+  const [imageName, setImageName] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+
+  const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError]           = useState('');
+  const [error, setError] = useState('');
+
+  
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev =>
@@ -44,12 +55,72 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
       onLoginPrompt();
       return;
     }
+
     setExpanded(true);
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setBody('');
+    setSelectedTags([]);
+    setImageUrl('');
+    setLinkUrl('');
+    setExpanded(false);
+    setShowTagPicker(false);
+    setShowLinkInput(false);
+
+    setImageName('');
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+
+    // TODO before production:
+    // This demo stores uploaded images as base64 text in SQLite.
+    // That is okay for small class testing, but it will not scale.
+    // For a real app, upload images to cloud/file storage instead
+    // and only save the image URL in the database.
+    if (file.size > 1 * 1024 * 1024) {
+      setError('Image must be under 1MB for this demo.');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      setImageUrl(reader.result);
+      setImageName(file.name);
+      setError('');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setImageUrl('');
+    setImageName('');
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!title.trim() || submitting) return;
+
     setSubmitting(true);
     setError('');
 
@@ -62,6 +133,8 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
           content: body.trim() || title.trim(),
           username: currentUser?.name || 'Anonymous',
           tags: selectedTags,
+          image_url: imageUrl.trim(),
+          link_url: linkUrl.trim(),
         }),
       });
 
@@ -71,16 +144,16 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
       }
 
       const newPost = await res.json();
-      if (onPostCreated) onPostCreated(newPost);
+
+      if (onPostCreated) {
+        onPostCreated(newPost);
+      }
 
       setSubmitted(true);
+
       setTimeout(() => {
-        setTitle('');
-        setBody('');
-        setSelectedTags([]);
-        setExpanded(false);
+        resetForm();
         setSubmitted(false);
-        setShowTagPicker(false);
       }, 2000);
     } catch (err) {
       setError(err.message);
@@ -90,24 +163,20 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
   };
 
   const handleDiscard = () => {
-    setTitle('');
-    setBody('');
-    setSelectedTags([]);
-    setExpanded(false);
-    setShowTagPicker(false);
+    resetForm();
+    setError('');
   };
 
   return (
-    <div
-      id="create-post-area"
-      className="create-post-area p-4"
-    >
+    <div id="create-post-area" className="create-post-area p-4">
       {submitted ? (
         <div className="py-6 text-center animate-fade-in">
           <div className="text-3xl mb-2">🎉</div>
+
           <p className="font-semibold" style={{ color: 'var(--color-owl-gold)' }}>
             Post submitted successfully!
           </p>
+
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
             Your post is now live in the feed.
           </p>
@@ -115,7 +184,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
       ) : (
         <form onSubmit={handleSubmit} id="create-post-form" noValidate>
           <div className="flex gap-3 items-start">
-            {/* User Avatar */}
             <img
               src={currentUserAvatar}
               alt="Your profile"
@@ -123,7 +191,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
             />
 
             <div className="flex-1 min-w-0">
-              {/* Title Input */}
               <input
                 id="post-title-input"
                 type="text"
@@ -138,7 +205,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
                 maxLength={200}
               />
 
-              {/* Expanded Body & Options */}
               {expanded && (
                 <div className="animate-slide-down">
                   <textarea
@@ -152,7 +218,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
                     aria-label="Post body"
                   />
 
-                  {/* Tag Picker */}
                   <div className="mt-3">
                     <button
                       type="button"
@@ -173,8 +238,13 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
                     </button>
 
                     {showTagPicker && (
-                      <div className="mt-2 flex flex-wrap gap-2 p-3 rounded-xl animate-slide-down"
-                        style={{ background: 'var(--color-surface-3)', border: '1px solid var(--color-border)' }}>
+                      <div
+                        className="mt-2 flex flex-wrap gap-2 p-3 rounded-xl animate-slide-down"
+                        style={{
+                          background: 'var(--color-surface-3)',
+                          border: '1px solid var(--color-border)',
+                        }}
+                      >
                         {AVAILABLE_TAGS.map(tag => (
                           <button
                             key={tag.id}
@@ -191,15 +261,87 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
                     )}
                   </div>
 
-                  {/* Action Buttons */}
+                  {imageUrl && (
+                    <div
+                      className="mt-3 rounded-2xl overflow-hidden"
+                      style={{
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-surface-3)',
+                      }}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt="Upload preview"
+                        className="w-full max-h-64 object-cover"
+                      />
+
+                      <div className="flex items-center justify-between gap-2 px-3 py-2">
+                        <p
+                          className="text-xs truncate"
+                          style={{ color: 'var(--color-text-muted)' }}
+                        >
+                          {imageName || 'Uploaded image'}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="text-xs font-bold"
+                          style={{ color: '#F87171' }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {showLinkInput && (
+                    <input
+                      type="url"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="Paste link URL..."
+                      className="w-full text-sm mt-3 px-3 py-2 rounded-xl"
+                      style={{
+                        background: 'var(--color-surface-3)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    />
+                  )}
+
                   <div className="flex items-center gap-2 mt-4">
-                    {/* Attachment Hints */}
-                    <button type="button" className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
-                      style={{ color: 'var(--color-text-muted)' }} title="Add image" aria-label="Add image">
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
+                      style={{
+                        color: imageUrl ? 'var(--color-owl-blue)' : 'var(--color-text-muted)',
+                      }}
+                      title="Upload image"
+                      aria-label="Upload image"
+                    >
                       <ImageIcon />
                     </button>
-                    <button type="button" className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
-                      style={{ color: 'var(--color-text-muted)' }} title="Add link" aria-label="Add link">
+
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkInput(p => !p)}
+                      className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
+                      style={{
+                        color: linkUrl.trim() ? 'var(--color-owl-blue)' : 'var(--color-text-muted)',
+                      }}
+                      title="Add link"
+                      aria-label="Add link"
+                    >
                       <LinkIcon />
                     </button>
 
@@ -210,22 +352,32 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
                       id="discard-post-btn"
                       onClick={handleDiscard}
                       className="px-4 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                      style={{ color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+                      style={{
+                        color: 'var(--color-text-muted)',
+                        border: '1px solid var(--color-border)',
+                      }}
                     >
                       Discard
                     </button>
+
                     <button
                       type="submit"
                       id="submit-post-btn"
                       disabled={!title.trim() || submitting}
                       className="px-5 py-1.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95"
-                      style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
+                      style={{
+                        background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))',
+                        color: 'white',
+                      }}
                     >
                       {submitting ? 'Posting…' : 'Post'}
                     </button>
                   </div>
+
                   {error && (
-                    <p className="text-xs mt-2" style={{ color: '#F87171' }}>{error}</p>
+                    <p className="text-xs mt-2" style={{ color: '#F87171' }}>
+                      {error}
+                    </p>
                   )}
                 </div>
               )}
