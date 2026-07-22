@@ -14,26 +14,16 @@ import { MOCK_POSTS } from './data/mockData';
 import './index.css';
 
 export default function App() {
-  // ── Auth from context ──────────────────────────────────
   const { user, isLoggedIn, loading } = useAuth();
-
-  // Admin check: you can expand this to check a role field later
   const isAdmin = isLoggedIn && user?.email === 'admin@fau.edu';
-
-  // ── UI state ────────────────────────────────────────────
   const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
   const [aiSummaryEnabled,  setAiSummaryEnabled]  = useState(false);
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
   const [sortMode, setSortMode] = useState('hot');
   const [theme, setTheme] = useState("light");
-  // 'feed' | 'saved' | 'admin' | 'profile' | 'login' | 'register'
   const [activeView, setActiveView] = useState('feed');
-
-  // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
-
-  // Fetch posts from the backend on mount (only when logged in)
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -42,18 +32,12 @@ export default function App() {
       .then(posts => setDbPosts(posts))
       .catch(err => console.warn('Backend unavailable, using mock data only:', err));
   }, [isLoggedIn]);
-
-  // Callback for CreatePost — prepend new post to the live feed
   const handlePostCreated = useCallback((newPost) => {
     setDbPosts(prev => [newPost, ...prev]);
   }, []);
-
-  // Merge DB posts on top, then mock posts as seed content
   const allPosts = useMemo(() => {
     return [...dbPosts, ...MOCK_POSTS];
   }, [dbPosts]);
-
-  // ── Filtered feed ───────────────────────────────────────
   const filteredPosts = useMemo(() => {
     let posts = allPosts;
 
@@ -148,8 +132,6 @@ export default function App() {
   const handlePostDeletedFromAdmin = (postId) => {
     setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
   };
-
-  // ── Loading state ─────────────────────────────────────
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme}`}
@@ -163,8 +145,6 @@ export default function App() {
       </div>
     );
   }
-
-  // ── Not logged in: show auth pages ────────────────────
   if (!isLoggedIn) {
     return (
       <div className={`min-h-screen ${theme}`} style={{ backgroundColor: 'var(--color-surface)' }}>
@@ -173,8 +153,6 @@ export default function App() {
         ) : (
           <RegisterPage onSwitchToLogin={() => setActiveView('login')} />
         )}
-
-        {/* Theme toggle in corner */}
         <div className="fixed bottom-4 right-4 z-50">
           <label className="toggle-switch" title="Toggle theme">
             <input
@@ -189,14 +167,11 @@ export default function App() {
       </div>
     );
   }
-
-  // ── Logged in: show full app ──────────────────────────
   return (
     <div
       className={`min-h-screen ${theme}`}
       style={{ backgroundColor: 'var(--color-surface)' }}
     >
-      {/* ── Navbar ──────────────────────────── */}
       <Navbar
         theme={theme}
         onThemeToggle={toggleTheme}
@@ -207,8 +182,6 @@ export default function App() {
         onNavigateProfile={() => setActiveView('profile')}
         onNavigateFeed={() => { setActiveView('feed'); setActiveTag('all'); }}
       />
-
-      {/* ── Mobile Sidebar Backdrop ─────────────────────── */}
       {mobileMenuOpen && (
         <div
           id="sidebar-backdrop"
@@ -218,11 +191,7 @@ export default function App() {
           aria-hidden="true"
         />
       )}
-
-      {/* ── Page Layout ─────────────────────────────────── */}
       <div className="pt-16 max-w-screen-xl mx-auto flex">
-
-        {/* Left Sidebar */}
         <LeftSidebar
           activeTag={activeTag}
           onTagChange={handleTagChange}
@@ -230,8 +199,6 @@ export default function App() {
           onAiToggle={() => setAiSummaryEnabled(p => !p)}
           mobileOpen={mobileMenuOpen}
         />
-
-        {/* ── Main Area ─────────────────────────────────── */}
         <main
           id="main-feed"
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
@@ -255,7 +222,6 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Feed Header */}
               <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                 <div>
                   <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text-primary)' }}>
@@ -314,15 +280,11 @@ export default function App() {
                   )}
                 </div>
               </div>
-
-              {/* Create Post */}
               <div className="mb-5">
                 <CreatePost
                   onPostCreated={handlePostCreated}
                 />
               </div>
-
-              {/* Post Feed */}
               {filteredPosts.length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {filteredPosts.map(post => (
@@ -352,8 +314,6 @@ export default function App() {
             </>
           )}
         </main>
-
-        {/* Right Sidebar */}
         <div className="py-6 pr-4 hidden xl:block">
           <RightSidebar />
         </div>

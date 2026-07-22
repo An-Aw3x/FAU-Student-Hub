@@ -1,7 +1,5 @@
 import { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
-
-// ── Utility: create a cropped image from canvas ─────────────
 function createImage(url) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -16,13 +14,9 @@ async function getCroppedImg(imageSrc, pixelCrop) {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-
-  // Output size: 256x256 circular avatar
   const size = 256;
   canvas.width = size;
   canvas.height = size;
-
-  // Draw cropped region onto the canvas
   ctx.drawImage(
     image,
     pixelCrop.x,
@@ -34,8 +28,6 @@ async function getCroppedImg(imageSrc, pixelCrop) {
     size,
     size
   );
-
-  // Return as base64 data URL
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
@@ -69,7 +61,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
         className="cropper-modal animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>
             Crop Avatar
@@ -86,8 +77,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
             </svg>
           </button>
         </div>
-
-        {/* Cropper Area */}
         <div className="relative w-full rounded-xl overflow-hidden mb-4" style={{ height: '300px', background: '#000' }}>
           <Cropper
             image={imageSrc}
@@ -101,8 +90,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
             onZoomChange={setZoom}
           />
         </div>
-
-        {/* Zoom Slider */}
         <div className="flex items-center gap-3 mb-6">
           <span className="text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>Zoom</span>
           <input
@@ -120,8 +107,6 @@ export default function AvatarCropper({ imageSrc, onSave, onCancel }) {
             {zoom.toFixed(1)}x
           </span>
         </div>
-
-        {/* Action Buttons */}
         <div className="flex items-center gap-3">
           <button
             type="button"

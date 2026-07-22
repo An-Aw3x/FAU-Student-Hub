@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-
-// ── Icons ──────────────────────────────────────────────────
 const SearchIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -44,8 +42,6 @@ const LogoutIcon = () => (
     <line x1="21" y1="12" x2="9" y2="12"/>
   </svg>
 );
-
-// ── Sort Options ───────────────────────────────────────────
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
@@ -61,8 +57,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
   const sortRef = useRef(null);
   const filterRef = useRef(null);
   const userMenuRef = useRef(null);
-
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
       if (sortRef.current && !sortRef.current.contains(e.target)) setSortOpen(false);
@@ -95,8 +89,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
       }`}
     >
       <div className="max-w-screen-xl mx-auto px-4 h-16 flex items-center gap-3">
-
-        {/* Mobile menu toggle */}
         <button
           id="mobile-menu-btn"
           className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-surface-3)] transition-all"
@@ -105,8 +97,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
         >
           {mobileMenuOpen ? <XIcon /> : <MenuIcon />}
         </button>
-
-        {/* OwlNet Logo */}
         <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none" onClick={(e) => { e.preventDefault(); handleFeed(); }}>
           <img
             src="/fau-owl-logo.png"
@@ -130,8 +120,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
             FAU
           </span>
         </a>
-
-        {/* Search Bar */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <div className="search-bar flex items-center gap-2 flex-1 px-4 py-2 min-w-0">
             <span className="text-[color:var(--color-text-muted)] shrink-0"><SearchIcon /></span>
@@ -145,8 +133,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
               aria-label="Search posts"
             />
           </div>
-
-          {/* Sort Dropdown */}
           <div ref={sortRef} className="relative hidden sm:block shrink-0">
             <button
               id="sort-dropdown-btn"
@@ -175,8 +161,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
               </div>
             )}
           </div>
-
-          {/* Filter Dropdown */}
           <div ref={filterRef} className="relative hidden md:block shrink-0">
             <button
               id="filter-dropdown-btn"
@@ -206,8 +190,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
             )}
           </div>
         </div>
-
-        {/* Theme Toggle */}
         <label className="toggle-switch">
           <input
             type="checkbox"
@@ -217,12 +199,9 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
           />
           <span className="toggle-slider"></span>
         </label>
-
-        {/* Auth Section */}
         <div className="flex items-center gap-2 shrink-0">
           {isLoggedIn && user ? (
             <>
-              {/* Notification Bell */}
               <button
                 id="notification-btn"
                 className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-all"
@@ -233,8 +212,6 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
                   style={{ background: 'var(--color-accent)' }} />
               </button>
-
-              {/* User Avatar with Dropdown */}
               <div ref={userMenuRef} className="relative">
                 <button
                   id="user-avatar-btn"
@@ -253,11 +230,8 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
                   </span>
                   <ChevronIcon />
                 </button>
-
-                {/* User Dropdown Menu */}
                 {userMenuOpen && (
                   <div className="user-dropdown absolute right-0 top-full mt-2 w-52 z-50 animate-slide-down" role="menu">
-                    {/* User info header */}
                     <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
                       <p className="text-sm font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
                         {user.username}

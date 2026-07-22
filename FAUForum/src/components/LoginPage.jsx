@@ -35,7 +35,6 @@ export default function LoginPage({ onSwitchToRegister }) {
     setSubmitting(true);
     try {
       await login(email.trim().toLowerCase(), password);
-      // Success - AuthContext sets user, App.jsx will redirect
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,7 +45,6 @@ export default function LoginPage({ onSwitchToRegister }) {
   return (
     <div className="auth-page">
       <div className="auth-card animate-fade-in">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 text-3xl"
             style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))' }}>
@@ -59,8 +57,6 @@ export default function LoginPage({ onSwitchToRegister }) {
             Sign in to your OwlNet account
           </p>
         </div>
-
-        {/* Error */}
         {error && (
           <div className="auth-error mb-4 animate-slide-down">
             {error}
@@ -68,7 +64,6 @@ export default function LoginPage({ onSwitchToRegister }) {
         )}
 
         <form onSubmit={handleSubmit} id="login-form" noValidate>
-          {/* Email */}
           <div className="mb-4">
             <label htmlFor="login-email" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -85,8 +80,6 @@ export default function LoginPage({ onSwitchToRegister }) {
               autoFocus
             />
           </div>
-
-          {/* Password */}
           <div className="mb-6">
             <label htmlFor="login-password" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -114,8 +107,6 @@ export default function LoginPage({ onSwitchToRegister }) {
               </button>
             </div>
           </div>
-
-          {/* Submit */}
           <button
             type="submit"
             id="login-submit-btn"
@@ -126,8 +117,6 @@ export default function LoginPage({ onSwitchToRegister }) {
             {submitting ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
-
-        {/* Switch to Register */}
         <p className="text-center text-sm mt-6" style={{ color: 'var(--color-text-muted)' }}>
           Don&apos;t have an account?{' '}
           <button

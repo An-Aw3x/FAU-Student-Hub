@@ -83,12 +83,6 @@ export default function CreatePost({ onPostCreated }) {
       setError('Please choose an image file.');
       return;
     }
-
-    // TODO before production:
-    // This demo stores uploaded images as base64 text in SQLite.
-    // That is okay for small class testing, but it will not scale.
-    // For a real app, upload images to cloud/file storage instead
-    // and only save the image URL in the database.
     if (file.size > 1 * 1024 * 1024) {
       setError('Image must be under 1MB for this demo.');
       return;

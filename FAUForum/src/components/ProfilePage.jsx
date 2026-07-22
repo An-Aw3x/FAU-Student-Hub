@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AvatarCropper from './AvatarCropper';
-
-// ── Icons ──────────────────────────────────────────────────
 const CameraIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -62,12 +60,8 @@ export default function ProfilePage({ onBack }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  // Avatar upload + crop
   const [cropperImage, setCropperImage] = useState(null);
   const fileInputRef = useRef(null);
-
-  // Fetch post count from backend
   useEffect(() => {
     if (!user?.id) return;
 
@@ -80,8 +74,6 @@ export default function ProfilePage({ onBack }) {
       })
       .catch(() => {});
   }, [user?.id]);
-
-  // Sync edit fields when user changes
   useEffect(() => {
     setEditUsername(user?.username || '');
     setEditBio(user?.bio || '');
@@ -111,8 +103,6 @@ export default function ProfilePage({ onBack }) {
       setError('');
     };
     reader.readAsDataURL(file);
-
-    // Reset file input so same file can be re-selected
     e.target.value = '';
   };
 
@@ -164,7 +154,6 @@ export default function ProfilePage({ onBack }) {
 
   return (
     <div className="max-w-2xl mx-auto animate-fade-in">
-      {/* Back Button */}
       <button
         type="button"
         id="profile-back-btn"
@@ -175,15 +164,10 @@ export default function ProfilePage({ onBack }) {
         <BackIcon />
         Back to Feed
       </button>
-
-      {/* Profile Card */}
       <div className="profile-card">
-        {/* Banner */}
         <div className="h-32 rounded-t-2xl"
           style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light), #1a365d)' }}
         />
-
-        {/* Avatar Section */}
         <div className="px-6 -mt-14">
           <div className="relative inline-block">
             <img
@@ -216,10 +200,7 @@ export default function ProfilePage({ onBack }) {
             />
           </div>
         </div>
-
-        {/* User Info */}
         <div className="px-6 pt-4 pb-6">
-          {/* Messages */}
           {error && <div className="auth-error mb-4 animate-slide-down">{error}</div>}
           {success && (
             <div className="mb-4 px-4 py-2.5 rounded-xl text-xs font-bold animate-slide-down"
@@ -229,7 +210,6 @@ export default function ProfilePage({ onBack }) {
           )}
 
           {editing ? (
-            /* ── Edit Mode ──────────────────────────────── */
             <div className="animate-slide-down">
               <div className="mb-4">
                 <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
@@ -288,7 +268,6 @@ export default function ProfilePage({ onBack }) {
               </div>
             </div>
           ) : (
-            /* ── View Mode ──────────────────────────────── */
             <>
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -310,8 +289,6 @@ export default function ProfilePage({ onBack }) {
                   Edit Profile
                 </button>
               </div>
-
-              {/* Bio */}
               {user.bio ? (
                 <p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--color-text-secondary)' }}>
                   {user.bio}
@@ -321,8 +298,6 @@ export default function ProfilePage({ onBack }) {
                   No bio yet. Click &quot;Edit Profile&quot; to add one.
                 </p>
               )}
-
-              {/* Stats */}
               <div className="flex gap-4 mb-6 flex-wrap">
                 <div className="profile-stat">
                   <CalendarIcon />
@@ -333,11 +308,7 @@ export default function ProfilePage({ onBack }) {
                   <span>{postCount} post{postCount !== 1 ? 's' : ''}</span>
                 </div>
               </div>
-
-              {/* Divider */}
               <div className="h-px mb-5" style={{ background: 'var(--color-border)' }} />
-
-              {/* Logout */}
               <button
                 type="button"
                 id="logout-btn"
@@ -352,8 +323,6 @@ export default function ProfilePage({ onBack }) {
           )}
         </div>
       </div>
-
-      {/* Avatar Cropper Modal */}
       {cropperImage && (
         <AvatarCropper
           imageSrc={cropperImage}

@@ -7,14 +7,7 @@ const app = express();
 const PORT = 3001;
 
 app.use(cors());
-// TODO before production:
-// This demo accepts small base64 image uploads through JSON.
-// This is not scalable for a real app. Use cloud/file storage
-// like S3, Cloudinary, Firebase Storage, or Supabase Storage,
-// then store only the final image URL in SQLite.
 app.use(express.json({ limit: "2mb" }));
-
-// This creates/opens the SQLite database file
 const dbPath = path.join(__dirname, "fau_forum.db");
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
@@ -32,8 +25,6 @@ const allowedReportReasons = [
   "violence",
   "other",
 ];
-
-// Serialize table creation and migration
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -145,8 +136,6 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
     )
   `);
 });
-
-// Saved/bookmarked posts table
 db.run(`
   CREATE TABLE IF NOT EXISTS saved_posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,8 +145,6 @@ db.run(`
     FOREIGN KEY (post_id) REFERENCES posts(id)
   )
 `);
-
-// Tracks one vote per user per post
 db.run(`
   CREATE TABLE IF NOT EXISTS post_votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,8 +156,6 @@ db.run(`
     FOREIGN KEY (post_id) REFERENCES posts(id)
   )
 `);
-
-// Tracks one like per user per comment
 db.run(`
   CREATE TABLE IF NOT EXISTS comment_votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,8 +166,6 @@ db.run(`
     FOREIGN KEY (comment_id) REFERENCES comments(id)
   )
 `);
-
-// Tracks every individual report record for posts and comments
 db.run(`
   CREATE TABLE IF NOT EXISTS report_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -193,13 +176,9 @@ db.run(`
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   )
 `);
-
-// Test route
 app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is working" });
 });
-
-// Get all posts
 app.get("/api/posts", (req, res) => {
   db.all(
     `
@@ -230,8 +209,6 @@ app.get("/api/posts", (req, res) => {
     }
   );
 });
-
-// Create a new post
 app.post("/api/posts", (req, res) => {
   const { title, content, username, tags, image_url, link_url } = req.body;
 
@@ -267,8 +244,6 @@ app.post("/api/posts", (req, res) => {
     }
   );
 });
-
-// Edit/update a post
 app.put("/api/posts/:id", (req, res) => {
   const { id } = req.params;
   const { title, content, tags } = req.body;
@@ -308,8 +283,6 @@ app.put("/api/posts/:id", (req, res) => {
     }
   );
 });
-
-// Vote on a post
 app.patch("/api/posts/:id/vote", (req, res) => {
   const { id } = req.params;
   const { voteType } = req.body;
@@ -435,8 +408,6 @@ app.patch("/api/posts/:id/vote", (req, res) => {
     );
   });
 });
-
-// Report a post
 app.patch("/api/posts/:id/report", (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
@@ -505,8 +476,6 @@ app.patch("/api/posts/:id/report", (req, res) => {
     );
   });
 });
-
-// Get comments for a specific post
 app.get("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
   const username = req.query.username || "Jamie Owls";
@@ -536,8 +505,6 @@ app.get("/api/posts/:postId/comments", (req, res) => {
     }
   );
 });
-
-// Add a comment to a post
 app.post("/api/posts/:postId/comments", (req, res) => {
   const { postId } = req.params;
   const { username, content } = req.body;
@@ -568,8 +535,6 @@ app.post("/api/posts/:postId/comments", (req, res) => {
     }
   );
 });
-
-// Like or unlike a comment
 app.patch("/api/comments/:id/like", (req, res) => {
   const { id } = req.params;
   const username = req.body.username || "Jamie Owls";
@@ -655,8 +620,6 @@ app.patch("/api/comments/:id/like", (req, res) => {
     );
   });
 });
-
-// Report a comment
 app.patch("/api/comments/:id/report", (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
@@ -722,8 +685,6 @@ app.patch("/api/comments/:id/report", (req, res) => {
     );
   });
 });
-
-// Delete a comment
 app.delete("/api/comments/:id", (req, res) => {
   const { id } = req.params;
 
@@ -749,8 +710,6 @@ app.delete("/api/comments/:id", (req, res) => {
     }
   );
 });
-
-// Admin: get all reported posts and comments
 app.get("/api/reports", (req, res) => {
   const reportedPostsQuery = `
     SELECT 
@@ -843,8 +802,6 @@ app.get("/api/reports", (req, res) => {
     });
   });
 });
-
-// Check if a post is saved
 app.get("/api/posts/:id/saved", (req, res) => {
   const { id } = req.params;
 
@@ -856,8 +813,6 @@ app.get("/api/posts/:id/saved", (req, res) => {
     res.json({ saved: !!row });
   });
 });
-
-// Save/bookmark a post
 app.post("/api/posts/:id/save", (req, res) => {
   const { id } = req.params;
   const username = req.body.username || "Anonymous";
@@ -888,8 +843,6 @@ app.post("/api/posts/:id/save", (req, res) => {
     );
   });
 });
-
-// Unsave/remove bookmark from a post
 app.delete("/api/posts/:id/save", (req, res) => {
   const { id } = req.params;
 
@@ -905,8 +858,6 @@ app.delete("/api/posts/:id/save", (req, res) => {
     });
   });
 });
-
-// Get saved posts with pagination / load more support
 app.get("/api/saved-posts", (req, res) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 25);
@@ -947,8 +898,6 @@ app.get("/api/saved-posts", (req, res) => {
     );
   });
 });
-
-// Admin: pin or unpin a post
 app.patch("/api/posts/:id/pin", (req, res) => {
   const { id } = req.params;
   const isPinned = req.body.isPinned ? 1 : 0;
@@ -979,8 +928,6 @@ app.patch("/api/posts/:id/pin", (req, res) => {
     }
   );
 });
-
-// Delete a post
 app.delete("/api/posts/:id", (req, res) => {
   const { id } = req.params;
 
@@ -996,8 +943,6 @@ app.delete("/api/posts/:id", (req, res) => {
     res.json({ message: "Post deleted successfully." });
   });
 });
-
-// Register a new user
 app.post("/api/auth/register", (req, res) => {
   const { username, email, password } = req.body;
 
@@ -1021,8 +966,6 @@ app.post("/api/auth/register", (req, res) => {
     db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
       if (row) return res.status(400).json({ error: "Username is already taken." });
-
-      // TODO: password should be hashed with bcrypt in production
       db.run(
         "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
         [username, email, password],
@@ -1042,8 +985,6 @@ app.post("/api/auth/register", (req, res) => {
     });
   });
 });
-
-// Login user
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
 
@@ -1058,8 +999,6 @@ app.post("/api/auth/login", (req, res) => {
     res.json(userWithoutPassword);
   });
 });
-
-// Get user profile
 app.get("/api/users/:id", (req, res) => {
   const { id } = req.params;
 
@@ -1082,8 +1021,6 @@ app.get("/api/users/:id", (req, res) => {
     );
   });
 });
-
-// Update user profile
 app.put("/api/users/:id", (req, res) => {
   const { id } = req.params;
   const { username, bio, avatar } = req.body;
@@ -1129,8 +1066,6 @@ app.put("/api/users/:id", (req, res) => {
     }
   });
 });
-
-// Start the server
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
 });

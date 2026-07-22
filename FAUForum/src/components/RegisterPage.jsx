@@ -65,7 +65,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
     setSubmitting(true);
     try {
       await register(username.trim(), email.trim().toLowerCase(), password);
-      // Success - AuthContext sets user, App.jsx will redirect
     } catch (err) {
       setServerError(err.message);
     } finally {
@@ -76,7 +75,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
   return (
     <div className="auth-page">
       <div className="auth-card animate-fade-in">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 text-3xl"
             style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))' }}>
@@ -89,8 +87,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
             Create your FAU student account
           </p>
         </div>
-
-        {/* Server Error */}
         {serverError && (
           <div className="auth-error mb-4 animate-slide-down">
             {serverError}
@@ -98,7 +94,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
         )}
 
         <form onSubmit={handleSubmit} id="register-form" noValidate>
-          {/* Username */}
           <div className="mb-4">
             <label htmlFor="register-username" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -116,8 +111,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
             />
             {errors.username && <p className="auth-field-error">{errors.username}</p>}
           </div>
-
-          {/* Email */}
           <div className="mb-4">
             <label htmlFor="register-email" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -139,8 +132,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
               </p>
             )}
           </div>
-
-          {/* Password */}
           <div className="mb-4">
             <label htmlFor="register-password" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -169,8 +160,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
             </div>
             {errors.password && <p className="auth-field-error">{errors.password}</p>}
           </div>
-
-          {/* Confirm Password */}
           <div className="mb-6">
             <label htmlFor="register-confirm" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
@@ -199,8 +188,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
             </div>
             {errors.confirmPassword && <p className="auth-field-error">{errors.confirmPassword}</p>}
           </div>
-
-          {/* Submit */}
           <button
             type="submit"
             id="register-submit-btn"
@@ -211,8 +198,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
             {submitting ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
-
-        {/* Switch to Login */}
         <p className="text-center text-sm mt-6" style={{ color: 'var(--color-text-muted)' }}>
           Already have an account?{' '}
           <button

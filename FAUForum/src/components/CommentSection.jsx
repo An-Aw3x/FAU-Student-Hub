@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-
-// ── Icons ──────────────────────────────────────────────────
 const ThumbUpIcon = ({ filled }) => (
   <svg width="14" height="14" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
@@ -74,8 +72,6 @@ const formatCommentTime = (createdAt) => {
     year: 'numeric',
   });
 };
-
-// ── Comment Section Component ───────────────────────────────
 export default function CommentSection({ postId, onCommentCountChange }) {
   const { user } = useAuth();
   const [replyingTo, setReplyingTo] = useState(null);
@@ -243,8 +239,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
       setReportSubmitting(false);
     }
   };
-
-  // Handle new comment submission
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
 
@@ -297,11 +291,8 @@ export default function CommentSection({ postId, onCommentCountChange }) {
       setError(err.message);
     }
   };
-
-  // Render the comment section
   return (
     <div className="mt-4 pt-4 animate-fade-in" style={{ borderTop: '1px solid var(--color-border)' }}>
-      {/* ── Add Comment ────────────────────────────────────── */}
       <form
         onSubmit={handleCommentSubmit}
         id={`comment-form-${postId}`}
@@ -344,8 +335,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           )}
         </div>
       </form>
-
-      {/* ── Comment List ───────────────────────────────────── */}
       {loading && (
         <p className="text-sm text-[color:var(--color-text-muted)]">
           Loading comments...
@@ -375,7 +364,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
 
             <div className="flex-1 min-w-0">
               <div className="comment-item">
-                {/* Comment Header */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className="text-xs font-bold"
@@ -398,16 +386,12 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                     · {comment.time}
                   </span>
                 </div>
-
-                {/* Comment Body */}
                 <p
                   className="text-sm leading-relaxed mb-2"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
                   {comment.text}
                 </p>
-
-                {/* Comment Actions */}
                 <div className="flex items-center gap-3">
                   <button
                     id={`comment-like-${comment.id}`}
@@ -448,8 +432,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                     {reportedComments[comment.id] ? 'Reported' : 'Report'}
                   </button>
                 </div>
-
-                {/* Inline Reply Box */}
                 {replyingTo === comment.id && (
                   <div className="mt-2 flex gap-2 animate-slide-down">
                     <input
@@ -482,8 +464,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           </div>
         ))}
       </div>
-
-      {/* ── Report Comment Popup ───────────────────────────── */}
       {reportingCommentId &&
         createPortal(
           <div

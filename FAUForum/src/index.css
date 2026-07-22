@@ -1,9 +1,5 @@
 @import "tailwindcss";
-
-/* ── Custom Design Tokens ─────────────────────────────────── */
 @theme {
-  /* ===== Light Theme (default) ===== */
-
   --color-owl-blue: #003F8A;
   --color-owl-blue-light: #1255B3;
 
@@ -39,8 +35,6 @@
   --color-text-secondary: #8B95B0;
   --color-text-muted: #55617A;
 }
-
-/* ── Base Reset & Global ──────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
@@ -53,8 +47,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-/* ── Scrollbar ────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-surface-2); }
 ::-webkit-scrollbar-thumb {
@@ -62,8 +54,6 @@ body {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-owl-blue-light); }
-
-/* ── Navbar ───────────────────────────────────────────── */
 .navbar-light {
   background: #003366;
   color: white;
@@ -76,10 +66,6 @@ body {
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(18, 19, 23, 0.8);
 }
-
-/* ── Utility Classes ──────────────────────────────────────── */
-
-/* a nice red for pinned posts */
 .pinned-label {
   color: var(--color-owl-red);
   font-weight: 700;
@@ -125,8 +111,6 @@ body {
   border-color: var(--color-owl-blue-light);
   color: white;
 }
-
-/* ── Animations ───────────────────────────────────────────── */
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -145,8 +129,6 @@ body {
 .animate-fade-in { animation: fadeSlideIn 0.3s ease forwards; }
 .animate-slide-down { animation: slideDown 0.2s ease forwards; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
-
-/* ── Vote Buttons ─────────────────────────────────────────── */
 .vote-btn {
   display: inline-flex;
   align-items: center;
@@ -175,8 +157,6 @@ body {
   border-color: rgba(248, 113, 113, 0.4);
   color: var(--color-downvote);
 }
-
-/* ── Toggle Switch ────────────────────────────────────────── */
 .toggle-switch {
   position: relative;
   width: 44px;
@@ -214,8 +194,6 @@ body {
 .toggle-switch input:checked + .toggle-slider::before {
   transform: translateX(20px);
 }
-
-/* ── Search Bar ───────────────────────────────────────────── */
 .search-bar {
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
@@ -227,8 +205,6 @@ body {
   border-color: var(--color-owl-blue-light);
   box-shadow: 0 0 0 3px rgba(18, 85, 179, 0.15);
 }
-
-/* ── Post Card ────────────────────────────────────────────── */
 .post-card {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
@@ -241,8 +217,6 @@ body {
   transform: translateY(-1px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
-
-/* ── AI Summary Banner ────────────────────────────────────── */
 .ai-summary-banner {
   background: linear-gradient(
     90deg,
@@ -262,8 +236,6 @@ body {
 
   border: 1px solid rgba(111, 174, 255, 0.18);
 }
-
-/* ── Sidebar Links ────────────────────────────────────────── */
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -290,8 +262,6 @@ body {
   color: #3e86eb;
   border-color: rgba(18, 85, 179, 0.3);
 }
-
-/* ── Create Post ──────────────────────────────────────────── */
 .create-post-area {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
@@ -321,15 +291,11 @@ input[type="text"] {
 }
 
 input[type="text"]::placeholder { color: var(--color-text-muted); }
-
-/* ── Avatar Gradient ──────────────────────────────────────── */
 .avatar-ring {
   border: 2px solid transparent;
   background: linear-gradient(var(--color-surface-2), var(--color-surface-2)) padding-box,
               linear-gradient(135deg, var(--color-owl-blue-light), var(--color-accent)) border-box;
 }
-
-/* ── Comment Section ──────────────────────────────────────── */
 .comment-item {
   border-left: 2px solid var(--color-border);
   padding-left: 12px;
@@ -339,8 +305,6 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
 .comment-item:hover {
   border-left-color: var(--color-owl-blue-light);
 }
-
-/* ── Dropdown ─────────────────────────────────────────────── */
 .dropdown-menu {
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
@@ -361,8 +325,6 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
   background: var(--color-surface-4);
   color: var(--color-text-primary);
 }
-
-/* ── Auth Pages ──────────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;
   display: flex;
@@ -429,8 +391,6 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
   border: 1px solid rgba(248, 113, 113, 0.3);
   color: #F87171;
 }
-
-/* ── Profile Page ────────────────────────────────────────── */
 .profile-card {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
@@ -456,8 +416,6 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
   font-weight: 500;
   color: var(--color-text-muted);
 }
-
-/* ── Avatar Cropper ──────────────────────────────────────── */
 .cropper-overlay {
   position: fixed;
   inset: 0;
@@ -480,8 +438,6 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
   padding: 24px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
-
-/* ── User Dropdown Menu ──────────────────────────────────── */
 .user-dropdown {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);

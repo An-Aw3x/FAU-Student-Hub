@@ -3,8 +3,6 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 const AuthContext = createContext(null);
 
 const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
-
-// Default avatar from DiceBear
 const generateDefaultAvatar = (seed) =>
   `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4`;
 
@@ -12,8 +10,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Restore session from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem('owlnet_session');
@@ -27,8 +23,6 @@ export function AuthProvider({ children }) {
     }
     setLoading(false);
   }, []);
-
-  // Persist session changes
   const persistSession = useCallback((userData) => {
     if (userData) {
       localStorage.setItem('owlnet_session', JSON.stringify(userData));
@@ -36,25 +30,16 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('owlnet_session');
     }
   }, []);
-
-  // ── Register ──────────────────────────────────────────────
   const register = useCallback(async (username, email, password) => {
-    // Validate email format
     if (!FAU_EMAIL_REGEX.test(email)) {
       throw new Error('Email must be a valid @fau.edu address.');
     }
-
-    // Validate username length
     if (!username || username.trim().length < 3) {
       throw new Error('Username must be at least 3 characters.');
     }
-
-    // Validate password length
     if (!password || password.length < 8) {
       throw new Error('Password must be at least 8 characters.');
     }
-
-    // Call backend API
     const res = await fetch('http://localhost:3001/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -70,8 +55,6 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       throw new Error(data.error || 'Registration failed.');
     }
-
-    // Set session
     const userData = {
       id: data.id,
       username: data.username,
@@ -87,8 +70,6 @@ export function AuthProvider({ children }) {
 
     return userData;
   }, [persistSession]);
-
-  // ── Login ─────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
     if (!email || !password) {
       throw new Error('Email and password are required.');
@@ -124,15 +105,11 @@ export function AuthProvider({ children }) {
 
     return userData;
   }, [persistSession]);
-
-  // ── Logout ────────────────────────────────────────────────
   const logout = useCallback(() => {
     setUser(null);
     setIsLoggedIn(false);
     persistSession(null);
   }, [persistSession]);
-
-  // ── Update Profile ────────────────────────────────────────
   const updateProfile = useCallback(async (updates) => {
     if (!user) throw new Error('Not logged in.');
 
@@ -160,8 +137,6 @@ export function AuthProvider({ children }) {
 
     return updatedUser;
   }, [user, persistSession]);
-
-  // ── Context Value ─────────────────────────────────────────
   const value = {
     user,
     isLoggedIn,
