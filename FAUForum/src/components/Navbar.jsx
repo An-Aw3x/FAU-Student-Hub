@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { LOGGED_IN_USER } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
 // ── Icons ──────────────────────────────────────────────────
 const SearchIcon = () => (
@@ -32,29 +32,61 @@ const XIcon = () => (
   </svg>
 );
 
+const UserIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+);
+
 // ── Sort Options ───────────────────────────────────────────
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
-  console.log(theme);
+export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery, onNavigateProfile, onNavigateFeed }) {
+  const { user, isLoggedIn, logout } = useAuth();
+
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Hot 🔥');
   const [selectedFilter, setSelectedFilter] = useState('All Categories');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const sortRef = useRef(null);
   const filterRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
       if (sortRef.current && !sortRef.current.contains(e.target)) setSortOpen(false);
       if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleLogout = () => {
+    setUserMenuOpen(false);
+    logout();
+  };
+
+  const handleProfile = () => {
+    setUserMenuOpen(false);
+    onNavigateProfile?.();
+  };
+
+  const handleFeed = () => {
+    setUserMenuOpen(false);
+    onNavigateFeed?.();
+  };
 
   return (
     <header
@@ -75,7 +107,7 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
         </button>
 
         {/* OwlNet Logo */}
-        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none">
+        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none" onClick={(e) => { e.preventDefault(); handleFeed(); }}>
           <img
             src="/fau-owl-logo.png"
             alt="FAU Logo"
@@ -181,14 +213,14 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
             type="checkbox"
             checked={theme === "dark"}
             onChange={onThemeToggle}
-            aria-label="ToggleD dark mode"
+            aria-label="Toggle dark mode"
           />
           <span className="toggle-slider"></span>
         </label>
 
         {/* Auth Section */}
         <div className="flex items-center gap-2 shrink-0">
-          {isLoggedIn ? (
+          {isLoggedIn && user ? (
             <>
               {/* Notification Bell */}
               <button
@@ -202,43 +234,69 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
                   style={{ background: 'var(--color-accent)' }} />
               </button>
 
-              {/* User Avatar */}
-              <button
-                id="user-avatar-btn"
-                onClick={onAuthToggle}
-                className="flex items-center gap-2 px-2 py-1 rounded-xl transition-all hover:bg-[color:var(--color-surface-3)]"
-                title="Click to sign out (demo)"
-              >
-                <img
-                  src={LOGGED_IN_USER.avatar}
-                  alt={LOGGED_IN_USER.name}
-                  className="w-8 h-8 rounded-full avatar-ring"
-                />
-                <span className="text-sm font-semibold hidden md:block" style={{ color: 'var(--color-text-primary)' }}>
-                  {LOGGED_IN_USER.name}
-                </span>
-              </button>
+              {/* User Avatar with Dropdown */}
+              <div ref={userMenuRef} className="relative">
+                <button
+                  id="user-avatar-btn"
+                  onClick={() => setUserMenuOpen(p => !p)}
+                  className="flex items-center gap-2 px-2 py-1 rounded-xl transition-all hover:bg-[color:var(--color-surface-3)]"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  <img
+                    src={user.avatar}
+                    alt={user.username}
+                    className="w-8 h-8 rounded-full avatar-ring object-cover"
+                  />
+                  <span className="text-sm font-semibold hidden md:block" style={{ color: 'var(--color-text-primary)' }}>
+                    {user.username}
+                  </span>
+                  <ChevronIcon />
+                </button>
+
+                {/* User Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="user-dropdown absolute right-0 top-full mt-2 w-52 z-50 animate-slide-down" role="menu">
+                    {/* User info header */}
+                    <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <p className="text-sm font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                        {user.username}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        id="nav-profile-btn"
+                        onClick={handleProfile}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        role="menuitem"
+                      >
+                        <UserIcon />
+                        My Profile
+                      </button>
+
+                      <button
+                        type="button"
+                        id="nav-logout-btn"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: '#F87171' }}
+                        role="menuitem"
+                      >
+                        <LogoutIcon />
+                        Log Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                id="login-btn"
-                onClick={onAuthToggle}
-                className="px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ color: 'var(--color-text-login)', border: '1px solid var(--color-border)' }}
-              >
-                Log In
-              </button>
-              <button
-                id="signup-btn"
-                onClick={onAuthToggle}
-                className="px-3 py-1.5 rounded-xl text-sm font-bold transition-all"
-                style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
     </header>

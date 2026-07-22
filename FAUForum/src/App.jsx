@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from './context/AuthContext';
 import Navbar       from './components/Navbar';
 import LeftSidebar  from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
@@ -6,14 +7,18 @@ import PostCard     from './components/PostCard';
 import CreatePost   from './components/CreatePost';
 import SavedPosts   from './components/SavedPosts';
 import AdminReports from './components/AdminReports';
-import { MOCK_POSTS, CURRENT_USER, LOGGED_IN_USER } from './data/mockData';
+import RegisterPage from './components/RegisterPage';
+import LoginPage    from './components/LoginPage';
+import ProfilePage  from './components/ProfilePage';
+import { MOCK_POSTS } from './data/mockData';
 import './index.css';
 
 export default function App() {
-  // ── Auth state ──────────────────────────────────────────
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const currentUser = isLoggedIn ? LOGGED_IN_USER : CURRENT_USER;
-  const isAdmin = isLoggedIn && currentUser?.name === 'Jamie Owls';
+  // ── Auth from context ──────────────────────────────────
+  const { user, isLoggedIn, loading } = useAuth();
+
+  // Admin check: you can expand this to check a role field later
+  const isAdmin = isLoggedIn && user?.email === 'admin@fau.edu';
 
   // ── UI state ────────────────────────────────────────────
   const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
@@ -21,20 +26,22 @@ export default function App() {
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
   const [sortMode, setSortMode] = useState('hot');
-  const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const [theme, setTheme] = useState("light");
+  // 'feed' | 'saved' | 'admin' | 'profile' | 'login' | 'register'
   const [activeView, setActiveView] = useState('feed');
 
   // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
 
-  // Fetch posts from the backend on mount
+  // Fetch posts from the backend on mount (only when logged in)
   useEffect(() => {
+    if (!isLoggedIn) return;
+
     fetch('/api/posts')
       .then(res => res.json())
       .then(posts => setDbPosts(posts))
       .catch(err => console.warn('Backend unavailable, using mock data only:', err));
-  }, []);
+  }, [isLoggedIn]);
 
   // Callback for CreatePost — prepend new post to the live feed
   const handlePostCreated = useCallback((newPost) => {
@@ -113,11 +120,6 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
-  const handleAuthToggle = () => {
-    setIsLoggedIn(p => !p);
-    setLoginPromptVisible(false);
-  };
-
   const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
@@ -147,11 +149,48 @@ export default function App() {
     setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
   };
 
-  const handleLoginPrompt = () => {
-    setLoginPromptVisible(true);
-    setTimeout(() => setLoginPromptVisible(false), 4000);
-  };
+  // ── Loading state ─────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${theme}`}
+        style={{ backgroundColor: 'var(--color-surface)' }}>
+        <div className="text-center animate-fade-in">
+          <div className="text-5xl mb-4">🦉</div>
+          <p className="font-display font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>
+            Loading OwlNet...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
+  // ── Not logged in: show auth pages ────────────────────
+  if (!isLoggedIn) {
+    return (
+      <div className={`min-h-screen ${theme}`} style={{ backgroundColor: 'var(--color-surface)' }}>
+        {activeView === 'login' || activeView === 'feed' ? (
+          <LoginPage onSwitchToRegister={() => setActiveView('register')} />
+        ) : (
+          <RegisterPage onSwitchToLogin={() => setActiveView('login')} />
+        )}
+
+        {/* Theme toggle in corner */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <label className="toggle-switch" title="Toggle theme">
+            <input
+              type="checkbox"
+              checked={theme === "dark"}
+              onChange={toggleTheme}
+              aria-label="Toggle dark mode"
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Logged in: show full app ──────────────────────────
   return (
     <div
       className={`min-h-screen ${theme}`}
@@ -161,12 +200,12 @@ export default function App() {
       <Navbar
         theme={theme}
         onThemeToggle={toggleTheme}
-        isLoggedIn={isLoggedIn}
-        onAuthToggle={handleAuthToggle}
         onMenuToggle={() => setMobileMenuOpen(p => !p)}
         mobileMenuOpen={mobileMenuOpen}
         onSearch={setSearchQuery}
         searchQuery={searchQuery}
+        onNavigateProfile={() => setActiveView('profile')}
+        onNavigateFeed={() => { setActiveView('feed'); setActiveTag('all'); }}
       />
 
       {/* ── Mobile Sidebar Backdrop ─────────────────────── */}
@@ -178,24 +217,6 @@ export default function App() {
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
-      )}
-
-      {/* ── Login Prompt Toast ───────────────────────────── */}
-      {loginPromptVisible && (
-        <div
-          id="login-toast"
-          role="alert"
-          aria-live="polite"
-          className="fixed top-20 left-1/2 z-50 animate-slide-down px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl"
-          style={{
-            transform: 'translateX(-50%)',
-            background: 'var(--color-surface-3)',
-            border: '1px solid var(--color-accent)',
-            color: 'var(--color-accent-light)',
-          }}
-        >
-          🔐 Please log in to post or comment — click <strong>Sign Up</strong> to demo!
-        </div>
       )}
 
       {/* ── Page Layout ─────────────────────────────────── */}
@@ -216,7 +237,11 @@ export default function App() {
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
           aria-label="Community feed"
         >
-          {activeView === 'saved' ? (
+          {activeView === 'profile' ? (
+            <ProfilePage
+              onBack={() => setActiveView('feed')}
+            />
+          ) : activeView === 'saved' ? (
             <SavedPosts
               isAdmin={isAdmin}
               onBack={() => setActiveView('feed')}
@@ -277,18 +302,6 @@ export default function App() {
                   >
                     🔖 Saved Posts
                   </button>
-                  {aiSummaryEnabled && (
-                    <span
-                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-                      style={{
-                        background: 'rgba(153, 200, 238, 0.12)',
-                        border: '1px solid rgba(115, 114, 201, 0.14)',
-                        color: 'var(--color-accent-light)',
-                      }}
-                    >
-                      ✨ AI Features Enabled
-                    </span>
-                  )}
 
                   {isAdmin && (
                     <button
@@ -305,10 +318,6 @@ export default function App() {
               {/* Create Post */}
               <div className="mb-5">
                 <CreatePost
-                  isLoggedIn={isLoggedIn}
-                  currentUser={currentUser}
-                  currentUserAvatar={currentUser.avatar}
-                  onLoginPrompt={handleLoginPrompt}
                   onPostCreated={handlePostCreated}
                 />
               </div>

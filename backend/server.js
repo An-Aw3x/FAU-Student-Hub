@@ -132,6 +132,18 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       console.error("Migration error:", err.message);
     }
   });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      avatar TEXT DEFAULT '',
+      bio TEXT DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 });
 
 // Saved/bookmarked posts table
@@ -982,6 +994,139 @@ app.delete("/api/posts/:id", (req, res) => {
     }
 
     res.json({ message: "Post deleted successfully." });
+  });
+});
+
+// Register a new user
+app.post("/api/auth/register", (req, res) => {
+  const { username, email, password } = req.body;
+
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: "Email must be a valid @fau.edu address." });
+  }
+
+  if (!username || username.length < 3) {
+    return res.status(400).json({ error: "Username must be at least 3 characters." });
+  }
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters." });
+  }
+
+  db.get("SELECT * FROM users WHERE email = ?", [email], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row) return res.status(400).json({ error: "Email is already taken." });
+
+    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) return res.status(400).json({ error: "Username is already taken." });
+
+      // TODO: password should be hashed with bcrypt in production
+      db.run(
+        "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+        [username, email, password],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          
+          res.status(201).json({
+            id: this.lastID,
+            username,
+            email,
+            avatar: "",
+            bio: "",
+            created_at: new Date().toISOString()
+          });
+        }
+      );
+    });
+  });
+});
+
+// Login user
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body;
+
+  db.get("SELECT * FROM users WHERE email = ?", [email], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const { password: _, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  });
+});
+
+// Get user profile
+app.get("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    db.get(
+      "SELECT COUNT(*) as count FROM posts WHERE username = ?",
+      [user.username],
+      (err, countRow) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        const { password, ...userWithoutPassword } = user;
+        res.json({
+          ...userWithoutPassword,
+          postCount: countRow.count || 0
+        });
+      }
+    );
+  });
+});
+
+// Update user profile
+app.put("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+  const { username, bio, avatar } = req.body;
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    if (username && username !== user.username) {
+      if (username.length < 3) {
+        return res.status(400).json({ error: "Username must be at least 3 characters." });
+      }
+
+      db.get("SELECT * FROM users WHERE username = ?", [username], (err, existing) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (existing) return res.status(400).json({ error: "Username is already taken." });
+        
+        updateUser();
+      });
+    } else {
+      updateUser();
+    }
+
+    function updateUser() {
+      const newUsername = username !== undefined ? username : user.username;
+      const newBio = bio !== undefined ? bio : user.bio;
+      const newAvatar = avatar !== undefined ? avatar : user.avatar;
+
+      db.run(
+        "UPDATE users SET username = ?, bio = ?, avatar = ? WHERE id = ?",
+        [newUsername, newBio, newAvatar, id],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+
+          db.get("SELECT * FROM users WHERE id = ?", [id], (err, updatedUser) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            const { password, ...userWithoutPassword } = updatedUser;
+            res.json(userWithoutPassword);
+          });
+        }
+      );
+    }
   });
 });
 

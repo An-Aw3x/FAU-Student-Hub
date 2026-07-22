@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import CommentSection from './CommentSection';
 import { AI_SUMMARIES } from '../data/mockData';
 
@@ -117,6 +118,7 @@ const formatPostTime = (createdAt, fallbackTimeAgo) => {
 };
 
 export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
+  const { user } = useAuth();
   const [currentPost, setCurrentPost] = useState(post);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -201,7 +203,7 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
         },
         body: JSON.stringify({
           voteType: dir,
-          username: 'Jamie Owls',
+          username: user?.username || 'Anonymous',
         }),
       });
 
@@ -359,7 +361,7 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: currentPost.username || 'Anonymous',
+          username: user?.username || 'Anonymous',
         }),
       });
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../context/AuthContext';
 
 // ── Icons ──────────────────────────────────────────────────
 const ThumbUpIcon = ({ filled }) => (
@@ -76,6 +77,7 @@ const formatCommentTime = (createdAt) => {
 
 // ── Comment Section Component ───────────────────────────────
 export default function CommentSection({ postId, onCommentCountChange }) {
+  const { user } = useAuth();
   const [replyingTo, setReplyingTo] = useState(null);
   const [likedComments, setLikedComments] = useState({});
   const [reportedComments, setReportedComments] = useState({});
@@ -96,7 +98,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         setComments([]);
 
         const response = await fetch(
-          `http://localhost:3001/api/posts/${postId}/comments?username=Jamie%20Owls`
+          `http://localhost:3001/api/posts/${postId}/comments?username=${encodeURIComponent(user?.username || '')}`
         );
 
         if (!response.ok) {
@@ -163,7 +165,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: 'Jamie Owls',
+          username: user?.username || 'Anonymous',
         }),
       });
 
@@ -259,7 +261,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         },
         body: JSON.stringify({
           content: trimmedComment,
-          username: 'Anonymous',
+          username: user?.username || 'Anonymous',
         }),
       });
 
@@ -306,7 +308,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         className="flex gap-3 mb-5"
       >
         <img
-          src="https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe"
+          src={user?.avatar || "https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe"}
           alt="Your avatar"
           className="w-8 h-8 rounded-full avatar-ring shrink-0 mt-1"
         />
