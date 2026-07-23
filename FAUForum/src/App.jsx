@@ -24,13 +24,13 @@ export default function App() {
   const [theme, setTheme] = useState("light");
   const [activeView, setActiveView] = useState('feed');
   const [dbPosts, setDbPosts] = useState([]);
-  useEffect(() => {
-    if (!isLoggedIn) return;
+  const [authModalView, setAuthModalView] = useState(null);
 
+  useEffect(() => {
     fetch('/api/posts')
       .then(res => res.json())
       .then(posts => setDbPosts(posts))
-      .catch(err => console.warn('Backend unavailable, using mock data only:', err));
+      .catch(() => {});
   }, [isLoggedIn]);
   const handlePostCreated = useCallback((newPost) => {
     setDbPosts(prev => [newPost, ...prev]);
@@ -145,29 +145,12 @@ export default function App() {
       </div>
     );
   }
-  if (!isLoggedIn) {
-    return (
-      <div className={`min-h-screen ${theme}`} style={{ backgroundColor: 'var(--color-surface)' }}>
-        {activeView === 'login' || activeView === 'feed' ? (
-          <LoginPage onSwitchToRegister={() => setActiveView('register')} />
-        ) : (
-          <RegisterPage onSwitchToLogin={() => setActiveView('login')} />
-        )}
-        <div className="fixed bottom-4 right-4 z-50">
-          <label className="toggle-switch" title="Toggle theme">
-            <input
-              type="checkbox"
-              checked={theme === "dark"}
-              onChange={toggleTheme}
-              aria-label="Toggle dark mode"
-            />
-            <span className="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-    );
-  }
+
+  const handleGuestCreatePost = () => setAuthModalView('login');
+
+  const closeAuthModal = () => setAuthModalView(null);
   return (
+    <>
     <div
       className={`min-h-screen ${theme}`}
       style={{ backgroundColor: 'var(--color-surface)' }}
@@ -181,6 +164,8 @@ export default function App() {
         searchQuery={searchQuery}
         onNavigateProfile={() => setActiveView('profile')}
         onNavigateFeed={() => { setActiveView('feed'); setActiveTag('all'); }}
+        onShowLogin={() => setAuthModalView('login')}
+        onShowRegister={() => setAuthModalView('register')}
       />
       {mobileMenuOpen && (
         <div
@@ -281,9 +266,24 @@ export default function App() {
                 </div>
               </div>
               <div className="mb-5">
-                <CreatePost
-                  onPostCreated={handlePostCreated}
-                />
+                {isLoggedIn ? (
+                  <CreatePost onPostCreated={handlePostCreated} />
+                ) : (
+                  <button
+                    type="button"
+                    id="guest-post-prompt"
+                    onClick={handleGuestCreatePost}
+                    className="w-full flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-medium transition-all text-left"
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    <span className="text-2xl">🦉</span>
+                    <span>Sign in to create a post...</span>
+                  </button>
+                )}
               </div>
               {filteredPosts.length > 0 ? (
                 <div className="flex flex-col gap-4">
@@ -319,5 +319,28 @@ export default function App() {
         </div>
       </div>
     </div>
+
+    {authModalView && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        onClick={closeAuthModal}
+      >
+        <div onClick={e => e.stopPropagation()} className="w-full max-w-md animate-fade-in">
+          {authModalView === 'login' ? (
+            <LoginPage
+              onSwitchToRegister={() => setAuthModalView('register')}
+              onClose={closeAuthModal}
+            />
+          ) : (
+            <RegisterPage
+              onSwitchToLogin={() => setAuthModalView('login')}
+              onClose={closeAuthModal}
+            />
+          )}
+        </div>
+      </div>
+    )}
+  </>
   );
 }

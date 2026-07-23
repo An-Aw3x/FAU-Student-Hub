@@ -45,7 +45,7 @@ const LogoutIcon = () => (
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery, onNavigateProfile, onNavigateFeed }) {
+export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery, onNavigateProfile, onNavigateFeed, onShowLogin, onShowRegister }) {
   const { user, isLoggedIn, logout } = useAuth();
 
   const [sortOpen, setSortOpen] = useState(false);
@@ -270,7 +270,28 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
                 )}
               </div>
             </>
-          ) : null}
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="nav-login-btn"
+                onClick={onShowLogin}
+                className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                id="nav-signup-btn"
+                onClick={onShowRegister}
+                className="px-4 py-2 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -16,7 +16,7 @@ const EyeOffIcon = () => (
 
 const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
 
-export default function RegisterPage({ onSwitchToLogin }) {
+export default function RegisterPage({ onSwitchToLogin, onClose }) {
   const { register } = useAuth();
 
   const [username, setUsername] = useState('');
@@ -73,8 +73,21 @@ export default function RegisterPage({ onSwitchToLogin }) {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card animate-fade-in">
+    <div className="auth-page" style={onClose ? { minHeight: 'auto' } : {}}>
+      <div className="auth-card animate-fade-in" style={{ position: 'relative' }}>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-1.5 rounded-lg transition-all"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        )}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 text-3xl"
             style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))' }}>
@@ -126,11 +139,6 @@ export default function RegisterPage({ onSwitchToLogin }) {
               autoComplete="email"
             />
             {errors.email && <p className="auth-field-error">{errors.email}</p>}
-            {!errors.email && (
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                Must end with @fau.edu
-              </p>
-            )}
           </div>
           <div className="mb-4">
             <label htmlFor="register-password" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
