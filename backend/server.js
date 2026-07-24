@@ -1,8 +1,12 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
-
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const app = express();
 const PORT = 3001;
 
@@ -25,6 +29,92 @@ const allowedReportReasons = [
   "violence",
   "other",
 ];
+const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:5173";
+const EMAIL_FROM = process.env.EMAIL_FROM || "OwlNet <no-reply@owlnet.local>";
+
+const createEmailTransporter = () => {
+  if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT || 587),
+    secure: process.env.EMAIL_SECURE === "true",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
+
+const sendVerificationEmail = async (email, token) => {
+  const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3001";
+  const verifyLink = `${API_BASE_URL}/api/auth/verify-email/${token}`;
+
+  const transporter = createEmailTransporter();
+
+  if (!transporter) {
+    console.log("\nFAU EMAIL VERIFICATION LINK:");
+    console.log(verifyLink);
+    console.log("Add SMTP settings to .env to send this as a real email.\n");
+    return;
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM,
+    to: email,
+    subject: "Verify your OwlNet account",
+    text: `Welcome to OwlNet. Verify your FAU email here: ${verifyLink}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        <h2>Verify your OwlNet account</h2>
+        <p>Click the button below to verify your FAU email address.</p>
+        <p>
+          <a href="${verifyLink}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#2563eb;color:white;text-decoration:none;font-weight:bold;">
+            Verify Email
+          </a>
+        </p>
+        <p>If the button does not work, copy this link:</p>
+        <p>${verifyLink}</p>
+      </div>
+    `,
+  });
+};
+const sendPasswordResetEmail = async (email, token) => {
+  const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:3001";
+  const resetLink = `${API_BASE_URL}/api/auth/reset-password/${token}`;
+
+  const transporter = createEmailTransporter();
+
+  if (!transporter) {
+    console.log("\nOWLNET PASSWORD RESET LINK:");
+    console.log(resetLink);
+    console.log("Add SMTP settings to .env to send this as a real email.\n");
+    return;
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM,
+    to: email,
+    subject: "Reset your OwlNet password",
+    text: `Reset your OwlNet password here: ${resetLink}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        <h2>Reset your OwlNet password</h2>
+        <p>Click the button below to reset your OwlNet password.</p>
+        <p>
+          <a href="${resetLink}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#2563eb;color:white;text-decoration:none;font-weight:bold;">
+            Reset Password
+          </a>
+        </p>
+        <p>This link expires soon. If you did not request this, you can ignore this email.</p>
+        <p>If the button does not work, copy this link:</p>
+        <p>${resetLink}</p>
+      </div>
+    `,
+  });
+};
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -124,6 +214,11 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
     }
   });
 
+  db.run(`ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Migration error:", err.message);
+    }
+  });
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,6 +227,39 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       password TEXT NOT NULL,
       avatar TEXT DEFAULT '',
       bio TEXT DEFAULT '',
+      email_verified INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      avatar TEXT DEFAULT '',
+      bio TEXT DEFAULT '',
+      email_verified INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -943,15 +1071,22 @@ app.delete("/api/posts/:id", (req, res) => {
     res.json({ message: "Post deleted successfully." });
   });
 });
-app.post("/api/auth/register", (req, res) => {
-  const { username, email, password } = req.body;
+app.post("/api/auth/register", async (req, res) => {
+  const { username, email, password, testEmail } = req.body;
+
+  const cleanUsername = username ? username.trim() : "";
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
+  const cleanTestEmail = testEmail ? testEmail.trim().toLowerCase() : "";
+
+  console.log("Register attempt:", cleanEmail);
 
   const emailRegex = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
-  if (!email || !emailRegex.test(email)) {
+
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
     return res.status(400).json({ error: "Email must be a valid @fau.edu address." });
   }
 
-  if (!username || username.length < 3) {
+  if (!cleanUsername || cleanUsername.length < 3) {
     return res.status(400).json({ error: "Username must be at least 3 characters." });
   }
 
@@ -959,46 +1094,441 @@ app.post("/api/auth/register", (req, res) => {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
 
-  db.get("SELECT * FROM users WHERE email = ?", [email], (err, row) => {
+  db.get("SELECT * FROM users WHERE email = ?", [cleanEmail], async (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (row) return res.status(400).json({ error: "Email is already taken." });
 
-    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
+    db.get("SELECT * FROM users WHERE username = ?", [cleanUsername], async (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
       if (row) return res.status(400).json({ error: "Username is already taken." });
-      db.run(
-        "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-        [username, email, password],
-        function (err) {
-          if (err) return res.status(500).json({ error: err.message });
-          
-          res.status(201).json({
-            id: this.lastID,
-            username,
-            email,
-            avatar: "",
-            bio: "",
-            created_at: new Date().toISOString()
-          });
-        }
-      );
+
+      try {
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        db.run(
+          "INSERT INTO users (username, email, password, email_verified) VALUES (?, ?, ?, 0)",
+          [cleanUsername, cleanEmail, passwordHash],
+          function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+
+            const userId = this.lastID;
+            const token = crypto.randomBytes(32).toString("hex");
+            const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
+            db.run(
+              "INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
+              [userId, token, expiresAt],
+              async (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                try {
+                  await sendVerificationEmail(cleanEmail, token);
+                  console.log("Verification email sent/requested for:", cleanEmail);
+
+                  // TEMPORARY DEV-ONLY:
+                  // FAU may block localhost links, so this sends a copy
+                  // to a personal email for local testing. Remove before deployment.
+                  if (cleanTestEmail) {
+                    await sendVerificationEmail(cleanTestEmail, token);
+                    console.log("Temporary test verification email sent/requested for:", cleanTestEmail);
+                  }
+                } catch (emailErr) {
+                  console.error("Failed to send verification email:", emailErr.message);
+
+                  return res.status(500).json({
+                    error: "Account created, but the verification email could not be sent. Check the backend email settings.",
+                  });
+                }
+
+                return res.status(201).json({
+                  id: userId,
+                  username: cleanUsername,
+                  email: cleanEmail,
+                  avatar: "",
+                  bio: "",
+                  email_verified: 0,
+                  created_at: new Date().toISOString(),
+                  message: "Account created. Please verify your FAU email before logging in.",
+                });
+              }
+            );
+          }
+        );
+      } catch (hashErr) {
+        return res.status(500).json({ error: "Could not create account." });
+      }
     });
   });
 });
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
 
-  db.get("SELECT * FROM users WHERE email = ?", [email], (err, user) => {
+  db.get("SELECT * FROM users WHERE email = ?", [cleanEmail], async (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
-    
-    if (!user || user.password !== password) {
+
+    if (!user) {
       return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const passwordMatches = await bcrypt.compare(password || "", user.password);
+
+    if (!passwordMatches) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    if (!user.email_verified) {
+      return res.status(403).json({
+        error: "Please verify your FAU email before logging in.",
+        needsVerification: true,
+        email: user.email,
+      });
     }
 
     const { password: _, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   });
 });
+app.post("/api/auth/forgot-password", (req, res) => {
+  const email = req.body.email ? req.body.email.trim().toLowerCase() : "";
+  const testEmail = req.body.testEmail ? req.body.testEmail.trim().toLowerCase() : "";
+
+  // Always return a generic response so people cannot check who has an account.
+  const genericResponse = {
+    message: "If an account exists for that FAU email, a password reset link has been sent.",
+  };
+
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
+
+  if (!email || !emailRegex.test(email)) {
+    return res.json(genericResponse);
+  }
+
+  db.get("SELECT * FROM users WHERE email = ?", [email], (err, user) => {
+    if (err) {
+      console.error("Forgot password error:", err.message);
+      return res.json(genericResponse);
+    }
+
+    if (!user) {
+      return res.json(genericResponse);
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30).toISOString();
+
+    db.run("DELETE FROM password_reset_tokens WHERE user_id = ?", [user.id], (err) => {
+      if (err) {
+        console.error("Reset token cleanup error:", err.message);
+        return res.json(genericResponse);
+      }
+
+      db.run(
+        "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
+        [user.id, token, expiresAt],
+        async (err) => {
+          if (err) {
+            console.error("Reset token insert error:", err.message);
+            return res.json(genericResponse);
+          }
+
+          try {
+            await sendPasswordResetEmail(email, token);
+            console.log("Password reset email sent/requested for:", email);
+
+            // TEMPORARY DEV-ONLY:
+            // FAU may block localhost reset links, so this sends a copy
+            // to a personal email for local testing. Remove before deployment.
+            if (testEmail) {
+              await sendPasswordResetEmail(testEmail, token);
+              console.log("Temporary test password reset email sent/requested for:", testEmail);
+            }
+          } catch (emailErr) {
+            console.error("Failed to send reset email:", emailErr.message);
+          }
+
+          res.json(genericResponse);
+        }
+      );
+    });
+  });
+});
+
+app.get("/api/auth/reset-password/:token", (req, res) => {
+  const { token } = req.params;
+
+  const sendResetPage = (title, message, tokenValue = "", success = true) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        </head>
+        <body style="margin:0; font-family: Arial, sans-serif; background:#f4f7fb; color:#102a43;">
+          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+            <div style="max-width:460px; width:100%; background:white; border:1px solid #d9e2ec; border-radius:22px; padding:32px; box-shadow:0 20px 50px rgba(15,23,42,0.12);">
+              <div style="width:64px; height:64px; border-radius:18px; margin:0 auto 18px; display:flex; align-items:center; justify-content:center; background:${success ? '#dbeafe' : '#fee2e2'}; color:${success ? '#0057b8' : '#dc2626'}; font-size:32px;">
+                ${success ? '🔒' : '!'}
+              </div>
+
+              <h1 style="margin:0 0 10px; font-size:26px; text-align:center;">${title}</h1>
+
+              <p style="margin:0 0 22px; color:#627d98; line-height:1.5; text-align:center;">
+                ${message}
+              </p>
+
+              ${
+                tokenValue
+                  ? `
+                    <form method="POST" action="/api/auth/reset-password/${tokenValue}">
+                      <label style="display:block; font-size:12px; font-weight:bold; color:#627d98; margin-bottom:6px; text-transform:uppercase;">
+                        New password
+                      </label>
+                      <input
+                        name="password"
+                        type="password"
+                        minlength="8"
+                        required
+                        placeholder="Minimum 8 characters"
+                        style="width:100%; box-sizing:border-box; padding:12px 14px; border:1px solid #cbd5e1; border-radius:12px; margin-bottom:14px;"
+                      />
+
+                      <label style="display:block; font-size:12px; font-weight:bold; color:#627d98; margin-bottom:6px; text-transform:uppercase;">
+                        Confirm password
+                      </label>
+                      <input
+                        name="confirmPassword"
+                        type="password"
+                        minlength="8"
+                        required
+                        placeholder="Re-enter new password"
+                        style="width:100%; box-sizing:border-box; padding:12px 14px; border:1px solid #cbd5e1; border-radius:12px; margin-bottom:18px;"
+                      />
+
+                      <button
+                        type="submit"
+                        style="width:100%; padding:12px 18px; border:none; border-radius:12px; background:#0057b8; color:white; font-weight:700; cursor:pointer;"
+                      >
+                        Reset password
+                      </button>
+                    </form>
+                  `
+                  : `
+                    <div style="text-align:center;">
+                      <a href="${APP_BASE_URL}" style="display:inline-block; padding:12px 18px; border-radius:12px; background:#0057b8; color:white; text-decoration:none; font-weight:700;">
+                        Return to OwlNet
+                      </a>
+                    </div>
+                  `
+              }
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  };
+
+  db.get(
+    "SELECT * FROM password_reset_tokens WHERE token = ?",
+    [token],
+    (err, tokenRow) => {
+      if (err) {
+        return sendResetPage("Reset error", "Something went wrong. Please try again.", "", false);
+      }
+
+      if (!tokenRow) {
+        return sendResetPage("Invalid reset link", "This reset link is invalid or has already been used.", "", false);
+      }
+
+      if (new Date(tokenRow.expires_at) < new Date()) {
+        db.run("DELETE FROM password_reset_tokens WHERE token = ?", [token]);
+        return sendResetPage("Reset link expired", "This password reset link has expired. Please request a new one.", "", false);
+      }
+
+      return sendResetPage("Reset password", "Enter a new password for your OwlNet account.", token, true);
+    }
+  );
+});
+
+app.post("/api/auth/reset-password/:token", express.urlencoded({ extended: true }), async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  const sendResultPage = (title, message, success = true) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        </head>
+        <body style="margin:0; font-family: Arial, sans-serif; background:#f4f7fb; color:#102a43;">
+          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+            <div style="max-width:460px; width:100%; background:white; border:1px solid #d9e2ec; border-radius:22px; padding:32px; text-align:center; box-shadow:0 20px 50px rgba(15,23,42,0.12);">
+              <div style="width:64px; height:64px; border-radius:18px; margin:0 auto 18px; display:flex; align-items:center; justify-content:center; background:${success ? '#dcfce7' : '#fee2e2'}; color:${success ? '#16a34a' : '#dc2626'}; font-size:32px;">
+                ${success ? '✓' : '!'}
+              </div>
+
+              <h1 style="margin:0 0 10px; font-size:26px;">${title}</h1>
+
+              <p style="margin:0 0 22px; color:#627d98; line-height:1.5;">
+                ${message}
+              </p>
+
+              <a href="${APP_BASE_URL}" style="display:inline-block; padding:12px 18px; border-radius:12px; background:#0057b8; color:white; text-decoration:none; font-weight:700;">
+                Return to OwlNet
+              </a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  };
+
+  if (!password || password.length < 8) {
+    return sendResultPage("Password too short", "Password must be at least 8 characters.", false);
+  }
+
+  if (password !== confirmPassword) {
+    return sendResultPage("Passwords do not match", "Please go back and make sure both passwords match.", false);
+  }
+
+  db.get(
+    "SELECT * FROM password_reset_tokens WHERE token = ?",
+    [token],
+    async (err, tokenRow) => {
+      if (err) {
+        return sendResultPage("Reset error", "Something went wrong. Please try again.", false);
+      }
+
+      if (!tokenRow) {
+        return sendResultPage("Invalid reset link", "This reset link is invalid or has already been used.", false);
+      }
+
+      if (new Date(tokenRow.expires_at) < new Date()) {
+        db.run("DELETE FROM password_reset_tokens WHERE token = ?", [token]);
+        return sendResultPage("Reset link expired", "This password reset link has expired. Please request a new one.", false);
+      }
+
+      try {
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        db.run(
+          "UPDATE users SET password = ? WHERE id = ?",
+          [passwordHash, tokenRow.user_id],
+          (err) => {
+            if (err) {
+              return sendResultPage("Reset error", "Could not update your password. Please try again.", false);
+            }
+
+            db.run("DELETE FROM password_reset_tokens WHERE user_id = ?", [tokenRow.user_id]);
+
+            return sendResultPage(
+              "Password reset",
+              "Your password has been updated. You can now log in with your new password.",
+              true
+            );
+          }
+        );
+      } catch {
+        return sendResultPage("Reset error", "Could not update your password. Please try again.", false);
+      }
+    }
+  );
+});
+app.get("/api/auth/verify-email/:token", (req, res) => {
+  const { token } = req.params;
+
+  const sendVerifyPage = (title, message, success = true) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        </head>
+        <body style="margin:0; font-family: Arial, sans-serif; background:#f4f7fb; color:#102a43;">
+          <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+            <div style="max-width:460px; width:100%; background:white; border:1px solid #d9e2ec; border-radius:22px; padding:32px; text-align:center; box-shadow:0 20px 50px rgba(15,23,42,0.12);">
+              <div style="width:64px; height:64px; border-radius:18px; margin:0 auto 18px; display:flex; align-items:center; justify-content:center; background:${success ? '#dcfce7' : '#fee2e2'}; color:${success ? '#16a34a' : '#dc2626'}; font-size:32px;">
+                ${success ? '✓' : '!'}
+              </div>
+
+              <h1 style="margin:0 0 10px; font-size:26px;">${title}</h1>
+
+              <p style="margin:0 0 22px; color:#627d98; line-height:1.5;">
+                ${message}
+              </p>
+
+              <a
+                href="${APP_BASE_URL}"
+                style="display:inline-block; padding:12px 18px; border-radius:12px; background:#0057b8; color:white; text-decoration:none; font-weight:700;"
+              >
+                Return to OwlNet
+              </a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  };
+
+  db.get(
+    "SELECT * FROM email_verification_tokens WHERE token = ?",
+    [token],
+    (err, tokenRow) => {
+      if (err) {
+        return sendVerifyPage(
+          "Verification error",
+          "Something went wrong while verifying your email. Please try again.",
+          false
+        );
+      }
+
+      if (!tokenRow) {
+        return sendVerifyPage(
+          "Invalid verification link",
+          "This verification link is invalid or has already been used.",
+          false
+        );
+      }
+
+      if (new Date(tokenRow.expires_at) < new Date()) {
+        db.run("DELETE FROM email_verification_tokens WHERE token = ?", [token]);
+
+        return sendVerifyPage(
+          "Verification link expired",
+          "This verification link expired. Please create a new account or request another verification email.",
+          false
+        );
+      }
+
+      db.run(
+        "UPDATE users SET email_verified = 1 WHERE id = ?",
+        [tokenRow.user_id],
+        function (err) {
+          if (err) {
+            return sendVerifyPage(
+              "Verification error",
+              "Something went wrong while verifying your email. Please try again.",
+              false
+            );
+          }
+
+          db.run("DELETE FROM email_verification_tokens WHERE user_id = ?", [tokenRow.user_id]);
+
+          return sendVerifyPage(
+            "Email verified",
+            "Your FAU email has been verified. You can now return to OwlNet and log in.",
+            true
+          );
+        }
+      );
+    }
+  );
+});
+
 app.get("/api/users/:id", (req, res) => {
   const { id } = req.params;
 
@@ -1064,6 +1594,34 @@ app.put("/api/users/:id", (req, res) => {
         }
       );
     }
+  });
+});
+// Delete a user account
+app.delete("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    db.serialize(() => {
+      // Keep old posts/comments but mark them as deleted user
+      db.run("UPDATE posts SET username = ? WHERE username = ?", ["Deleted User", user.username]);
+      db.run("UPDATE comments SET username = ? WHERE username = ?", ["Deleted User", user.username]);
+
+      db.run("DELETE FROM users WHERE id = ?", [id], function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({ success: true });
+      });
+    });
   });
 });
 app.listen(PORT, () => {

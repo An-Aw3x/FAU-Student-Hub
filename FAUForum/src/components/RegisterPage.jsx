@@ -28,6 +28,8 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [testEmail, setTestEmail] = useState('');
 
   const validate = () => {
     const newErrors = {};
@@ -58,15 +60,28 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setServerError('');
+    setSuccessMessage('');
 
     if (!validate()) return;
 
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
     setSubmitting(true);
+
     try {
-      await register(username.trim(), email.trim().toLowerCase(), password);
+      await register(cleanUsername, cleanEmail, password, testEmail.trim().toLowerCase());
+
+      setSuccessMessage('Account created. Check your FAU email to verify your account before logging in.');
+
+      setUsername('');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
     } catch (err) {
-      setServerError(err.message);
+      setServerError(err.message || 'Could not create account.');
     } finally {
       setSubmitting(false);
     }
@@ -100,12 +115,48 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
             Create your FAU student account
           </p>
         </div>
+
         {serverError && (
           <div className="auth-error mb-4 animate-slide-down">
             {serverError}
           </div>
         )}
 
+        {successMessage && (
+          <div
+            className="mb-4 animate-slide-down rounded-2xl px-4 py-3 text-sm font-semibold"
+            style={{
+              background: 'rgba(34, 197, 94, 0.12)',
+              border: '1px solid rgba(34, 197, 94, 0.35)',
+              color: '#15803d',
+            }}
+          >
+            ✅ {successMessage}
+          </div>
+        )}
+          <div className="mb-4">
+            <label
+              htmlFor="register-test-email"
+              className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Temporary personal email
+            </label>
+
+            <input
+              id="register-test-email"
+              type="email"
+              placeholder="Optional: personal email for local testing"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className="auth-input"
+              autoComplete="email"
+            />
+
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Temporary testing only. FAU may block localhost links, so this sends a copy of the verification email to a personal inbox. Remove before deployment.
+            </p>
+          </div>
         <form onSubmit={handleSubmit} id="register-form" noValidate>
           <div className="mb-4">
             <label htmlFor="register-username" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"

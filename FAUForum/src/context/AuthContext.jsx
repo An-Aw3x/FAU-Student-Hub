@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('owlnet_session');
     }
   }, []);
-  const register = useCallback(async (username, email, password) => {
+  const register = useCallback(async (username, email, password, testEmail = '') => {
     if (!FAU_EMAIL_REGEX.test(email)) {
       throw new Error('Email must be a valid @fau.edu address.');
     }
@@ -47,6 +47,7 @@ export function AuthProvider({ children }) {
         username: username.trim(),
         email: email.trim().toLowerCase(),
         password,
+        testEmail,
       }),
     });
 
@@ -63,10 +64,6 @@ export function AuthProvider({ children }) {
       bio: data.bio || '',
       joinDate: data.created_at || new Date().toISOString(),
     };
-
-    setUser(userData);
-    setIsLoggedIn(true);
-    persistSession(userData);
 
     return userData;
   }, [persistSession]);
@@ -110,6 +107,27 @@ export function AuthProvider({ children }) {
     setIsLoggedIn(false);
     persistSession(null);
   }, [persistSession]);
+  const deleteAccount = useCallback(async () => {
+    if (!user) {
+      throw new Error('Not logged in.');
+    }
+
+    const res = await fetch(`http://localhost:3001/api/users/${user.id}`, {
+      method: 'DELETE',
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to delete account.');
+    }
+
+    setUser(null);
+    setIsLoggedIn(false);
+    persistSession(null);
+
+    return true;
+  }, [user, persistSession]);
   const updateProfile = useCallback(async (updates) => {
     if (!user) throw new Error('Not logged in.');
 
@@ -145,6 +163,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     updateProfile,
+    deleteAccount,
   };
 
   return (

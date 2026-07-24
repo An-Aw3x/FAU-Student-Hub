@@ -42,11 +42,69 @@ const LogoutIcon = () => (
     <line x1="21" y1="12" x2="9" y2="12"/>
   </svg>
 );
+
+const DraftIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="8" y1="13" x2="16" y2="13" />
+    <line x1="8" y1="17" x2="13" y2="17" />
+  </svg>
+);
+
+const TrophyIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+    <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+    <path d="M5 4H3v3a4 4 0 0 0 4 4" />
+    <path d="M19 4h2v3a4 4 0 0 1-4 4" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
+  </svg>
+);
+
+const SunIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4" />
+    <line x1="12" y1="2" x2="12" y2="4" />
+    <line x1="12" y1="20" x2="12" y2="22" />
+    <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
+    <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
+    <line x1="2" y1="12" x2="4" y2="12" />
+    <line x1="20" y1="12" x2="22" y2="12" />
+    <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
+    <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
+
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery, onNavigateProfile, onNavigateFeed, onShowLogin, onShowRegister }) {
-  const { user, isLoggedIn, logout } = useAuth();
+export default function Navbar({
+  theme,
+  onThemeToggle,
+  onMenuToggle,
+  mobileMenuOpen,
+  onSearch,
+  searchQuery,
+  onNavigateProfile,
+  onNavigateSettings,
+  onNavigateFeed,
+  onShowLogin,
+  onShowRegister,
+}) {  const { user, isLoggedIn, logout } = useAuth();
 
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -75,6 +133,11 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
   const handleProfile = () => {
     setUserMenuOpen(false);
     onNavigateProfile?.();
+  };
+
+  const handleSettings = () => {
+    setUserMenuOpen(false);
+    onNavigateSettings?.();
   };
 
   const handleFeed = () => {
@@ -190,15 +253,7 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
             )}
           </div>
         </div>
-        <label className="toggle-switch">
-          <input
-            type="checkbox"
-            checked={theme === "dark"}
-            onChange={onThemeToggle}
-            aria-label="Toggle dark mode"
-          />
-          <span className="toggle-slider"></span>
-        </label>
+        
         <div className="flex items-center gap-2 shrink-0">
           {isLoggedIn && user ? (
             <>
@@ -231,7 +286,7 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
                   <ChevronIcon />
                 </button>
                 {userMenuOpen && (
-                  <div className="user-dropdown absolute right-0 top-full mt-2 w-52 z-50 animate-slide-down" role="menu">
+                  <div className="user-dropdown absolute right-0 top-full mt-2 w-64 z-50 animate-slide-down" role="menu">
                     <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
                       <p className="text-sm font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
                         {user.username}
@@ -251,20 +306,47 @@ export default function Navbar({ theme, onThemeToggle, onMenuToggle, mobileMenuO
                         role="menuitem"
                       >
                         <UserIcon />
-                        My Profile
+                        View Profile
                       </button>
 
                       <button
                         type="button"
-                        id="nav-logout-btn"
-                        onClick={handleLogout}
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          onThemeToggle?.();
+                        }}
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
-                        style={{ color: '#F87171' }}
+                        style={{ color: 'var(--color-text-secondary)' }}
                         role="menuitem"
                       >
-                        <LogoutIcon />
-                        Log Out
+                        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSettings}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        role="menuitem"
+                      >
+                        <SettingsIcon />
+                        Account Settings
+                      </button>
+
+                      <div style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <button
+                          type="button"
+                          id="nav-logout-btn"
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                          style={{ color: '#F87171' }}
+                          role="menuitem"
+                        >
+                          <LogoutIcon />
+                          Log Out
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

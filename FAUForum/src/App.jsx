@@ -12,6 +12,7 @@ import LoginPage    from './components/LoginPage';
 import ProfilePage  from './components/ProfilePage';
 import { MOCK_POSTS } from './data/mockData';
 import './index.css';
+import SettingsPage from './components/SettingsPage';
 
 export default function App() {
   const { user, isLoggedIn, loading } = useAuth();
@@ -163,6 +164,7 @@ export default function App() {
         onSearch={setSearchQuery}
         searchQuery={searchQuery}
         onNavigateProfile={() => setActiveView('profile')}
+        onNavigateSettings={() => setActiveView('settings')}
         onNavigateFeed={() => { setActiveView('feed'); setActiveTag('all'); }}
         onShowLogin={() => setAuthModalView('login')}
         onShowRegister={() => setAuthModalView('register')}
@@ -189,7 +191,55 @@ export default function App() {
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
           aria-label="Community feed"
         >
-          {activeView === 'profile' ? (
+          {!isLoggedIn ? (
+            <div
+              className="max-w-xl mx-auto mt-16 rounded-3xl p-8 text-center animate-fade-in"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <img
+                src="/fau-owl-logo.png"
+                alt="FAU OwlNet"
+                className="w-16 h-16 mx-auto mb-4 object-contain"
+              />
+
+              <h1 className="font-display font-bold text-2xl mb-2">
+                Welcome to OwlNet
+              </h1>
+
+              <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
+                Sign in with a verified FAU email to view posts, create threads, comment, and use OwlNet.
+              </p>
+
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAuthModalView('login')}
+                  className="vote-btn"
+                >
+                  Log In
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAuthModalView('register')}
+                  className="vote-btn upvoted"
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+          ) : activeView === 'settings' ? (
+            <SettingsPage
+              theme={theme}
+              onThemeToggle={toggleTheme}
+              onBack={() => setActiveView('feed')}
+              onOpenProfile={() => setActiveView('profile')}
+            />
+          ) : activeView === 'profile' ? (
             <ProfilePage
               onBack={() => setActiveView('feed')}
             />
@@ -324,7 +374,6 @@ export default function App() {
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-        onClick={closeAuthModal}
       >
         <div onClick={e => e.stopPropagation()} className="w-full max-w-md animate-fade-in">
           {authModalView === 'login' ? (

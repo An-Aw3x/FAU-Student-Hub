@@ -453,3 +453,44 @@ input[type="text"]::placeholder { color: var(--color-text-muted); }
 .user-dropdown button:hover {
   background: var(--color-surface-3);
 }
+
+.settings-list {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.settings-row {
+  width: 100%;
+  min-height: 64px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  transition: background 0.18s ease, opacity 0.18s ease;
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row:hover {
+  background: var(--color-surface-3);
+}
+
+.settings-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.settings-subtitle {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
