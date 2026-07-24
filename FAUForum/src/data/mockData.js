@@ -127,19 +127,8 @@ export const MOCK_POSTS = [
   },
 ];
 
-export const CURRENT_USER = {
-  id: 99,
-  name: 'You (Guest)',
-  handle: '@guest_user',
-  avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe`,
-};
-
-export const LOGGED_IN_USER = {
-  id: 100,
-  name: 'Jamie Owls',
-  handle: '@jamieowls_fau',
-  avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=JamieOwls&backgroundColor=ddd6fe`,
-};
+// CURRENT_USER and LOGGED_IN_USER have been removed.
+// User profiles are now created via the Register page and stored in the backend.
 
 export const AI_SUMMARIES = {
   'mock1': '🦉 AI Summary: This post discusses affordable housing options within walking/biking distance of FAU Boca. Key picks: Palmetto Dunes (~$900/mo) and University Village (~$1,100/mo). Commenters recommend applying early.',

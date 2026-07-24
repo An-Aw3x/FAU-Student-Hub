@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { LOGGED_IN_USER } from '../data/mockData';
-
-// ── Icons ──────────────────────────────────────────────────
+import { useAuth } from '../context/AuthContext';
 const SearchIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -32,29 +30,120 @@ const XIcon = () => (
   </svg>
 );
 
-// ── Sort Options ───────────────────────────────────────────
+const UserIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+);
+
+const DraftIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="8" y1="13" x2="16" y2="13" />
+    <line x1="8" y1="17" x2="13" y2="17" />
+  </svg>
+);
+
+const TrophyIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+    <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+    <path d="M5 4H3v3a4 4 0 0 0 4 4" />
+    <path d="M19 4h2v3a4 4 0 0 1-4 4" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
+  </svg>
+);
+
+const SunIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4" />
+    <line x1="12" y1="2" x2="12" y2="4" />
+    <line x1="12" y1="20" x2="12" y2="22" />
+    <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
+    <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
+    <line x1="2" y1="12" x2="4" y2="12" />
+    <line x1="20" y1="12" x2="22" y2="12" />
+    <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
+    <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
+
 const SORT_OPTIONS = ['Hot 🔥', 'New 🆕', 'Top ⬆️', 'Rising 📈'];
 const FILTER_OPTIONS = ['All Categories', 'Housing', 'Classes', 'Campus Life', 'Jobs', 'Events'];
 
-export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle, onMenuToggle, mobileMenuOpen, onSearch, searchQuery }) {
-  console.log(theme);
+export default function Navbar({
+  theme,
+  onThemeToggle,
+  onMenuToggle,
+  mobileMenuOpen,
+  onSearch,
+  searchQuery,
+  onNavigateProfile,
+  onNavigateSettings,
+  onNavigateFeed,
+  onShowLogin,
+  onShowRegister,
+}) {  const { user, isLoggedIn, logout } = useAuth();
+
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Hot 🔥');
   const [selectedFilter, setSelectedFilter] = useState('All Categories');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const sortRef = useRef(null);
   const filterRef = useRef(null);
-
-  // Close dropdowns on outside click
+  const userMenuRef = useRef(null);
   useEffect(() => {
     const handler = (e) => {
       if (sortRef.current && !sortRef.current.contains(e.target)) setSortOpen(false);
       if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleLogout = () => {
+    setUserMenuOpen(false);
+    logout();
+  };
+
+  const handleProfile = () => {
+    setUserMenuOpen(false);
+    onNavigateProfile?.();
+  };
+
+  const handleSettings = () => {
+    setUserMenuOpen(false);
+    onNavigateSettings?.();
+  };
+
+  const handleFeed = () => {
+    setUserMenuOpen(false);
+    onNavigateFeed?.();
+  };
 
   return (
     <header
@@ -63,8 +152,6 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
       }`}
     >
       <div className="max-w-screen-xl mx-auto px-4 h-16 flex items-center gap-3">
-
-        {/* Mobile menu toggle */}
         <button
           id="mobile-menu-btn"
           className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-surface-3)] transition-all"
@@ -73,9 +160,7 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
         >
           {mobileMenuOpen ? <XIcon /> : <MenuIcon />}
         </button>
-
-        {/* OwlNet Logo */}
-        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none">
+        <a href="#" id="fau-owl-logo" className="flex items-center gap-2 shrink-0 select-none" onClick={(e) => { e.preventDefault(); handleFeed(); }}>
           <img
             src="/fau-owl-logo.png"
             alt="FAU Logo"
@@ -98,8 +183,6 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
             FAU
           </span>
         </a>
-
-        {/* Search Bar */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <div className="search-bar flex items-center gap-2 flex-1 px-4 py-2 min-w-0">
             <span className="text-[color:var(--color-text-muted)] shrink-0"><SearchIcon /></span>
@@ -113,8 +196,6 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
               aria-label="Search posts"
             />
           </div>
-
-          {/* Sort Dropdown */}
           <div ref={sortRef} className="relative hidden sm:block shrink-0">
             <button
               id="sort-dropdown-btn"
@@ -143,8 +224,6 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
               </div>
             )}
           </div>
-
-          {/* Filter Dropdown */}
           <div ref={filterRef} className="relative hidden md:block shrink-0">
             <button
               id="filter-dropdown-btn"
@@ -174,23 +253,10 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
             )}
           </div>
         </div>
-
-        {/* Theme Toggle */}
-        <label className="toggle-switch">
-          <input
-            type="checkbox"
-            checked={theme === "dark"}
-            onChange={onThemeToggle}
-            aria-label="ToggleD dark mode"
-          />
-          <span className="toggle-slider"></span>
-        </label>
-
-        {/* Auth Section */}
+        
         <div className="flex items-center gap-2 shrink-0">
-          {isLoggedIn ? (
+          {isLoggedIn && user ? (
             <>
-              {/* Notification Bell */}
               <button
                 id="notification-btn"
                 className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-all"
@@ -201,38 +267,107 @@ export default function Navbar({ theme, onThemeToggle, isLoggedIn, onAuthToggle,
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
                   style={{ background: 'var(--color-accent)' }} />
               </button>
+              <div ref={userMenuRef} className="relative">
+                <button
+                  id="user-avatar-btn"
+                  onClick={() => setUserMenuOpen(p => !p)}
+                  className="flex items-center gap-2 px-2 py-1 rounded-xl transition-all hover:bg-[color:var(--color-surface-3)]"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  <img
+                    src={user.avatar}
+                    alt={user.username}
+                    className="w-8 h-8 rounded-full avatar-ring object-cover"
+                  />
+                  <span className="text-sm font-semibold hidden md:block" style={{ color: 'var(--color-text-primary)' }}>
+                    {user.username}
+                  </span>
+                  <ChevronIcon />
+                </button>
+                {userMenuOpen && (
+                  <div className="user-dropdown absolute right-0 top-full mt-2 w-64 z-50 animate-slide-down" role="menu">
+                    <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <p className="text-sm font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                        {user.username}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+                        {user.email}
+                      </p>
+                    </div>
 
-              {/* User Avatar */}
-              <button
-                id="user-avatar-btn"
-                onClick={onAuthToggle}
-                className="flex items-center gap-2 px-2 py-1 rounded-xl transition-all hover:bg-[color:var(--color-surface-3)]"
-                title="Click to sign out (demo)"
-              >
-                <img
-                  src={LOGGED_IN_USER.avatar}
-                  alt={LOGGED_IN_USER.name}
-                  className="w-8 h-8 rounded-full avatar-ring"
-                />
-                <span className="text-sm font-semibold hidden md:block" style={{ color: 'var(--color-text-primary)' }}>
-                  {LOGGED_IN_USER.name}
-                </span>
-              </button>
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        id="nav-profile-btn"
+                        onClick={handleProfile}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        role="menuitem"
+                      >
+                        <UserIcon />
+                        View Profile
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          onThemeToggle?.();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        role="menuitem"
+                      >
+                        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSettings}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                        role="menuitem"
+                      >
+                        <SettingsIcon />
+                        Account Settings
+                      </button>
+
+                      <div style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <button
+                          type="button"
+                          id="nav-logout-btn"
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-all text-left"
+                          style={{ color: '#F87171' }}
+                          role="menuitem"
+                        >
+                          <LogoutIcon />
+                          Log Out
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
               <button
-                id="login-btn"
-                onClick={onAuthToggle}
-                className="px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                style={{ color: 'var(--color-text-login)', border: '1px solid var(--color-border)' }}
+                type="button"
+                id="nav-login-btn"
+                onClick={onShowLogin}
+                className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
               >
                 Log In
               </button>
               <button
-                id="signup-btn"
-                onClick={onAuthToggle}
-                className="px-3 py-1.5 rounded-xl text-sm font-bold transition-all"
+                type="button"
+                id="nav-signup-btn"
+                onClick={onShowRegister}
+                className="px-4 py-2 rounded-xl text-sm font-bold transition-all hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
               >
                 Sign Up

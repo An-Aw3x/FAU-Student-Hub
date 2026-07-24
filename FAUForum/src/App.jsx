@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from './context/AuthContext';
 import Navbar       from './components/Navbar';
 import LeftSidebar  from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
@@ -6,47 +7,38 @@ import PostCard     from './components/PostCard';
 import CreatePost   from './components/CreatePost';
 import SavedPosts   from './components/SavedPosts';
 import AdminReports from './components/AdminReports';
-import { MOCK_POSTS, CURRENT_USER, LOGGED_IN_USER } from './data/mockData';
+import RegisterPage from './components/RegisterPage';
+import LoginPage    from './components/LoginPage';
+import ProfilePage  from './components/ProfilePage';
+import { MOCK_POSTS } from './data/mockData';
 import './index.css';
+import SettingsPage from './components/SettingsPage';
 
 export default function App() {
-  // ── Auth state ──────────────────────────────────────────
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const currentUser = isLoggedIn ? LOGGED_IN_USER : CURRENT_USER;
-  const isAdmin = isLoggedIn && currentUser?.name === 'Jamie Owls';
-
-  // ── UI state ────────────────────────────────────────────
+  const { user, isLoggedIn, loading } = useAuth();
+  const isAdmin = isLoggedIn && user?.email === 'admin@fau.edu';
   const [mobileMenuOpen,    setMobileMenuOpen]    = useState(false);
   const [aiSummaryEnabled,  setAiSummaryEnabled]  = useState(false);
   const [activeTag,         setActiveTag]         = useState('all');
   const [searchQuery,       setSearchQuery]       = useState('');
   const [sortMode, setSortMode] = useState('hot');
-  const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const [theme, setTheme] = useState("light");
   const [activeView, setActiveView] = useState('feed');
-
-  // ── Posts state (live from DB) ──────────────────────────
   const [dbPosts, setDbPosts] = useState([]);
+  const [authModalView, setAuthModalView] = useState(null);
 
-  // Fetch posts from the backend on mount
   useEffect(() => {
     fetch('/api/posts')
       .then(res => res.json())
       .then(posts => setDbPosts(posts))
-      .catch(err => console.warn('Backend unavailable, using mock data only:', err));
-  }, []);
-
-  // Callback for CreatePost — prepend new post to the live feed
+      .catch(() => {});
+  }, [isLoggedIn]);
   const handlePostCreated = useCallback((newPost) => {
     setDbPosts(prev => [newPost, ...prev]);
   }, []);
-
-  // Merge DB posts on top, then mock posts as seed content
   const allPosts = useMemo(() => {
     return [...dbPosts, ...MOCK_POSTS];
   }, [dbPosts]);
-
-  // ── Filtered feed ───────────────────────────────────────
   const filteredPosts = useMemo(() => {
     let posts = allPosts;
 
@@ -113,11 +105,6 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
-  const handleAuthToggle = () => {
-    setIsLoggedIn(p => !p);
-    setLoginPromptVisible(false);
-  };
-
   const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
@@ -146,30 +133,42 @@ export default function App() {
   const handlePostDeletedFromAdmin = (postId) => {
     setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
   };
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${theme}`}
+        style={{ backgroundColor: 'var(--color-surface)' }}>
+        <div className="text-center animate-fade-in">
+          <div className="text-5xl mb-4">🦉</div>
+          <p className="font-display font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>
+            Loading OwlNet...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleLoginPrompt = () => {
-    setLoginPromptVisible(true);
-    setTimeout(() => setLoginPromptVisible(false), 4000);
-  };
+  const handleGuestCreatePost = () => setAuthModalView('login');
 
+  const closeAuthModal = () => setAuthModalView(null);
   return (
+    <>
     <div
       className={`min-h-screen ${theme}`}
       style={{ backgroundColor: 'var(--color-surface)' }}
     >
-      {/* ── Navbar ──────────────────────────── */}
       <Navbar
         theme={theme}
         onThemeToggle={toggleTheme}
-        isLoggedIn={isLoggedIn}
-        onAuthToggle={handleAuthToggle}
         onMenuToggle={() => setMobileMenuOpen(p => !p)}
         mobileMenuOpen={mobileMenuOpen}
         onSearch={setSearchQuery}
         searchQuery={searchQuery}
+        onNavigateProfile={() => setActiveView('profile')}
+        onNavigateSettings={() => setActiveView('settings')}
+        onNavigateFeed={() => { setActiveView('feed'); setActiveTag('all'); }}
+        onShowLogin={() => setAuthModalView('login')}
+        onShowRegister={() => setAuthModalView('register')}
       />
-
-      {/* ── Mobile Sidebar Backdrop ─────────────────────── */}
       {mobileMenuOpen && (
         <div
           id="sidebar-backdrop"
@@ -179,29 +178,7 @@ export default function App() {
           aria-hidden="true"
         />
       )}
-
-      {/* ── Login Prompt Toast ───────────────────────────── */}
-      {loginPromptVisible && (
-        <div
-          id="login-toast"
-          role="alert"
-          aria-live="polite"
-          className="fixed top-20 left-1/2 z-50 animate-slide-down px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl"
-          style={{
-            transform: 'translateX(-50%)',
-            background: 'var(--color-surface-3)',
-            border: '1px solid var(--color-accent)',
-            color: 'var(--color-accent-light)',
-          }}
-        >
-          🔐 Please log in to post or comment — click <strong>Sign Up</strong> to demo!
-        </div>
-      )}
-
-      {/* ── Page Layout ─────────────────────────────────── */}
       <div className="pt-16 max-w-screen-xl mx-auto flex">
-
-        {/* Left Sidebar */}
         <LeftSidebar
           activeTag={activeTag}
           onTagChange={handleTagChange}
@@ -209,14 +186,64 @@ export default function App() {
           onAiToggle={() => setAiSummaryEnabled(p => !p)}
           mobileOpen={mobileMenuOpen}
         />
-
-        {/* ── Main Area ─────────────────────────────────── */}
         <main
           id="main-feed"
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
           aria-label="Community feed"
         >
-          {activeView === 'saved' ? (
+          {!isLoggedIn ? (
+            <div
+              className="max-w-xl mx-auto mt-16 rounded-3xl p-8 text-center animate-fade-in"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <img
+                src="/fau-owl-logo.png"
+                alt="FAU OwlNet"
+                className="w-16 h-16 mx-auto mb-4 object-contain"
+              />
+
+              <h1 className="font-display font-bold text-2xl mb-2">
+                Welcome to OwlNet
+              </h1>
+
+              <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
+                Sign in with a verified FAU email to view posts, create threads, comment, and use OwlNet.
+              </p>
+
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAuthModalView('login')}
+                  className="vote-btn"
+                >
+                  Log In
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAuthModalView('register')}
+                  className="vote-btn upvoted"
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+          ) : activeView === 'settings' ? (
+            <SettingsPage
+              theme={theme}
+              onThemeToggle={toggleTheme}
+              onBack={() => setActiveView('feed')}
+              onOpenProfile={() => setActiveView('profile')}
+            />
+          ) : activeView === 'profile' ? (
+            <ProfilePage
+              onBack={() => setActiveView('feed')}
+            />
+          ) : activeView === 'saved' ? (
             <SavedPosts
               isAdmin={isAdmin}
               onBack={() => setActiveView('feed')}
@@ -230,7 +257,6 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Feed Header */}
               <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                 <div>
                   <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--color-text-primary)' }}>
@@ -277,18 +303,6 @@ export default function App() {
                   >
                     🔖 Saved Posts
                   </button>
-                  {aiSummaryEnabled && (
-                    <span
-                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-                      style={{
-                        background: 'rgba(153, 200, 238, 0.12)',
-                        border: '1px solid rgba(115, 114, 201, 0.14)',
-                        color: 'var(--color-accent-light)',
-                      }}
-                    >
-                      ✨ AI Features Enabled
-                    </span>
-                  )}
 
                   {isAdmin && (
                     <button
@@ -301,19 +315,26 @@ export default function App() {
                   )}
                 </div>
               </div>
-
-              {/* Create Post */}
               <div className="mb-5">
-                <CreatePost
-                  isLoggedIn={isLoggedIn}
-                  currentUser={currentUser}
-                  currentUserAvatar={currentUser.avatar}
-                  onLoginPrompt={handleLoginPrompt}
-                  onPostCreated={handlePostCreated}
-                />
+                {isLoggedIn ? (
+                  <CreatePost onPostCreated={handlePostCreated} />
+                ) : (
+                  <button
+                    type="button"
+                    id="guest-post-prompt"
+                    onClick={handleGuestCreatePost}
+                    className="w-full flex items-center gap-3 px-5 py-4 rounded-2xl text-sm font-medium transition-all text-left"
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    <span className="text-2xl">🦉</span>
+                    <span>Sign in to create a post...</span>
+                  </button>
+                )}
               </div>
-
-              {/* Post Feed */}
               {filteredPosts.length > 0 ? (
                 <div className="flex flex-col gap-4">
                   {filteredPosts.map(post => (
@@ -343,12 +364,32 @@ export default function App() {
             </>
           )}
         </main>
-
-        {/* Right Sidebar */}
         <div className="py-6 pr-4 hidden xl:block">
           <RightSidebar />
         </div>
       </div>
     </div>
+
+    {authModalView && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      >
+        <div onClick={e => e.stopPropagation()} className="w-full max-w-md animate-fade-in">
+          {authModalView === 'login' ? (
+            <LoginPage
+              onSwitchToRegister={() => setAuthModalView('register')}
+              onClose={closeAuthModal}
+            />
+          ) : (
+            <RegisterPage
+              onSwitchToLogin={() => setAuthModalView('login')}
+              onClose={closeAuthModal}
+            />
+          )}
+        </div>
+      </div>
+    )}
+  </>
   );
 }
