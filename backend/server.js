@@ -13,6 +13,7 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 const dbPath = path.join(__dirname, "fau_forum.db");
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("Failed to open database:", err.message);
@@ -20,6 +21,33 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.log("Connected to SQLite database at", dbPath);
   }
 });
+
+const getAsync = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};
+
+const allAsync = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+};
+
+const runAsync = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  });
+};
 
 const allowedReportReasons = [
   "spam",
@@ -231,6 +259,20 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      username TEXT,
+      joined_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run("ALTER TABLE users ADD COLUMN last_seen TEXT", (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.error("Could not add last_seen column:", err.message);
+    }
+  });
   db.run(`
     CREATE TABLE IF NOT EXISTS email_verification_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1623,6 +1665,133 @@ app.delete("/api/users/:id", (req, res) => {
       });
     });
   });
+});
+const getCommunityStats = async () => {
+  const memberRow = await getAsync(
+    "SELECT COUNT(*) AS count FROM users WHERE email_verified = 1"
+  );
+
+  const onlineRow = await getAsync(
+    "SELECT COUNT(*) AS count FROM users WHERE last_seen IS NOT NULL AND last_seen >= datetime('now', '-5 minutes')"
+  );
+
+  const postsTodayRow = await getAsync(
+    "SELECT COUNT(*) AS count FROM posts WHERE date(created_at) = date('now')"
+  );
+
+  return {
+    memberCount: memberRow?.count || 0,
+    onlineCount: onlineRow?.count || 0,
+    postsToday: postsTodayRow?.count || 0,
+  };
+};
+
+app.get("/api/community/stats", async (req, res) => {
+  try {
+    const stats = await getCommunityStats(req.query.email || "");
+    res.json(stats);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load community stats." });
+  }
+});
+
+app.post("/api/community/join", async (req, res) => {
+  try {
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : "";
+    const username = req.body.username ? req.body.username.trim() : "";
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    await runAsync(
+      "INSERT OR IGNORE INTO community_members (email, username) VALUES (?, ?)",
+      [email, username || email.split("@")[0]]
+    );
+
+    await runAsync(
+      "UPDATE users SET last_seen = datetime('now') WHERE email = ?",
+      [email]
+    );
+
+    const stats = await getCommunityStats(email);
+    res.json(stats);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not join community." });
+  }
+});
+
+app.delete("/api/community/join", async (req, res) => {
+  try {
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : "";
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    await runAsync(
+      "DELETE FROM community_members WHERE email = ?",
+      [email]
+    );
+
+    const stats = await getCommunityStats(email);
+    res.json(stats);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not leave community." });
+  }
+});
+
+app.post("/api/users/heartbeat", async (req, res) => {
+  try {
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : "";
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    await runAsync(
+      "UPDATE users SET last_seen = datetime('now') WHERE email = ?",
+      [email]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not update online status." });
+  }
+});
+
+app.get("/api/community/active-users", async (req, res) => {
+  try {
+    const rows = await allAsync(`
+      SELECT username, email, last_seen
+      FROM users
+      WHERE last_seen IS NOT NULL
+        AND last_seen >= datetime('now', '-5 minutes')
+      ORDER BY last_seen DESC
+      LIMIT 4
+    `);
+
+    const users = rows.map((row) => {
+      const name = row.username || row.email.split("@")[0];
+      const handle = `@${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+
+      return {
+        id: row.email,
+        name,
+        handle,
+        avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4`,
+      };
+    });
+
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load active users." });
+  }
 });
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);

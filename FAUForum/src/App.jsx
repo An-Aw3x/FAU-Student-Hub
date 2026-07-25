@@ -13,6 +13,8 @@ import ProfilePage  from './components/ProfilePage';
 import { MOCK_POSTS } from './data/mockData';
 import './index.css';
 import SettingsPage from './components/SettingsPage';
+import PublicProfilePage from './components/PublicProfilePage';
+import CommunityPage from './components/CommunityPage';
 
 export default function App() {
   const { user, isLoggedIn, loading } = useAuth();
@@ -26,6 +28,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('feed');
   const [dbPosts, setDbPosts] = useState([]);
   const [authModalView, setAuthModalView] = useState(null);
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
     fetch('/api/posts')
@@ -105,8 +108,18 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
-  const toggleTheme = () => {
+    const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
+  const handleViewProfile = (profile) => {
+    setSelectedProfile(profile);
+    setActiveView('publicProfile');
+  };
+
+  const handleOpenCommunityChat = (tagId) => {
+    setActiveTag(tagId);
+    setActiveView('feed');
   };
 
   const handleOpenPostFromAdmin = (postId) => {
@@ -129,7 +142,6 @@ export default function App() {
       }
     }, 150);
   };
-
   const handlePostDeletedFromAdmin = (postId) => {
     setDbPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
   };
@@ -191,48 +203,59 @@ export default function App() {
           className="flex-1 min-w-0 px-4 py-6 lg:px-6"
           aria-label="Community feed"
         >
-          {!isLoggedIn ? (
-            <div
-              className="max-w-xl mx-auto mt-16 rounded-3xl p-8 text-center animate-fade-in"
-              style={{
-                background: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-              }}
-            >
-              <img
-                src="/fau-owl-logo.png"
-                alt="FAU OwlNet"
-                className="w-16 h-16 mx-auto mb-4 object-contain"
-              />
+                    {!isLoggedIn ? (
+                      <div
+                        className="max-w-xl mx-auto mt-16 rounded-3xl p-8 text-center animate-fade-in"
+                        style={{
+                          background: 'var(--color-surface-2)',
+                          border: '1px solid var(--color-border)',
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
+                        <img
+                          src="/fau-owl-logo.png"
+                          alt="FAU OwlNet"
+                          className="w-16 h-16 mx-auto mb-4 object-contain"
+                        />
 
-              <h1 className="font-display font-bold text-2xl mb-2">
-                Welcome to OwlNet
-              </h1>
+                        <h1 className="font-display font-bold text-2xl mb-2">
+                          Welcome to OwlNet
+                        </h1>
 
-              <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
-                Sign in with a verified FAU email to view posts, create threads, comment, and use OwlNet.
-              </p>
+                        <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
+                          Sign in with a verified FAU email to view posts, create threads, comment, and use OwlNet.
+                        </p>
 
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setAuthModalView('login')}
-                  className="vote-btn"
-                >
-                  Log In
-                </button>
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setAuthModalView('login')}
+                            className="vote-btn"
+                          >
+                            Log In
+                          </button>
 
-                <button
-                  type="button"
-                  onClick={() => setAuthModalView('register')}
-                  className="vote-btn upvoted"
-                >
-                  Create Account
-                </button>
-              </div>
-            </div>
-          ) : activeView === 'settings' ? (
+                          <button
+                            type="button"
+                            onClick={() => setAuthModalView('register')}
+                            className="vote-btn upvoted"
+                          >
+                            Create Account
+                          </button>
+                        </div>
+                      </div>
+                    ) : activeView === 'publicProfile' ? (
+                      <PublicProfilePage
+                        profile={selectedProfile}
+                        posts={filteredPosts}
+                        onBack={() => setActiveView('feed')}
+                      />
+                      ) : activeView === 'community' ? (
+                        <CommunityPage
+                          onBack={() => setActiveView('feed')}
+                          onOpenChat={handleOpenCommunityChat}
+                        />
+                      ) : activeView === 'settings' ? (
             <SettingsPage
               theme={theme}
               onThemeToggle={toggleTheme}
@@ -341,6 +364,7 @@ export default function App() {
                     <PostCard
                       key={post.created_at ? `db-${post.id}` : `mock-${post.id}`}
                       post={post}
+                      onViewProfile={handleViewProfile}
                       aiSummaryEnabled={aiSummaryEnabled}
                       isAdmin={isAdmin}
                     />
@@ -365,7 +389,7 @@ export default function App() {
           )}
         </main>
         <div className="py-6 pr-4 hidden xl:block">
-          <RightSidebar />
+          <RightSidebar onOpenCommunity={() => setActiveView('community')} />
         </div>
       </div>
     </div>

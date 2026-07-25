@@ -115,7 +115,7 @@ const formatPostTime = (createdAt, fallbackTimeAgo) => {
   });
 };
 
-export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
+export default function PostCard({ post, aiSummaryEnabled, isAdmin, onViewProfile }) {
   const { user } = useAuth();
   const [currentPost, setCurrentPost] = useState(post);
   const [isDeleted, setIsDeleted] = useState(false);
@@ -510,9 +510,21 @@ export default function PostCard({ post, aiSummaryEnabled, isAdmin }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            <button
+              type="button"
+              onClick={() =>
+                onViewProfile?.({
+                  username: authorName,
+                  handle: authorHandle,
+                  avatar: authorAvatar,
+                  bio: currentPost.user?.bio || currentPost.bio || '',
+                })
+              }
+              className="font-semibold text-sm hover:underline"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
               {authorName}
-            </span>
+            </button>
 
             {authorHandle && (
               <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
