@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-
-// ── Icons ──────────────────────────────────────────────────
+import { useAuth } from '../context/AuthContext';
 const ThumbUpIcon = ({ filled }) => (
   <svg width="14" height="14" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
@@ -73,9 +72,8 @@ const formatCommentTime = (createdAt) => {
     year: 'numeric',
   });
 };
-
-// ── Comment Section Component ───────────────────────────────
 export default function CommentSection({ postId, onCommentCountChange }) {
+  const { user } = useAuth();
   const [replyingTo, setReplyingTo] = useState(null);
   const [likedComments, setLikedComments] = useState({});
   const [reportedComments, setReportedComments] = useState({});
@@ -96,7 +94,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         setComments([]);
 
         const response = await fetch(
-          `http://localhost:3001/api/posts/${postId}/comments?username=Jamie%20Owls`
+          `http://localhost:3001/api/posts/${postId}/comments?username=${encodeURIComponent(user?.username || '')}`
         );
 
         if (!response.ok) {
@@ -163,7 +161,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: 'Jamie Owls',
+          username: user?.username || 'Anonymous',
         }),
       });
 
@@ -241,8 +239,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
       setReportSubmitting(false);
     }
   };
-
-  // Handle new comment submission
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
 
@@ -259,7 +255,7 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         },
         body: JSON.stringify({
           content: trimmedComment,
-          username: 'Anonymous',
+          username: user?.username || 'Anonymous',
         }),
       });
 
@@ -295,18 +291,15 @@ export default function CommentSection({ postId, onCommentCountChange }) {
       setError(err.message);
     }
   };
-
-  // Render the comment section
   return (
     <div className="mt-4 pt-4 animate-fade-in" style={{ borderTop: '1px solid var(--color-border)' }}>
-      {/* ── Add Comment ────────────────────────────────────── */}
       <form
         onSubmit={handleCommentSubmit}
         id={`comment-form-${postId}`}
         className="flex gap-3 mb-5"
       >
         <img
-          src="https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe"
+          src={user?.avatar || "https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe"}
           alt="Your avatar"
           className="w-8 h-8 rounded-full avatar-ring shrink-0 mt-1"
         />
@@ -342,8 +335,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           )}
         </div>
       </form>
-
-      {/* ── Comment List ───────────────────────────────────── */}
       {loading && (
         <p className="text-sm text-[color:var(--color-text-muted)]">
           Loading comments...
@@ -373,7 +364,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
 
             <div className="flex-1 min-w-0">
               <div className="comment-item">
-                {/* Comment Header */}
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className="text-xs font-bold"
@@ -396,16 +386,12 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                     · {comment.time}
                   </span>
                 </div>
-
-                {/* Comment Body */}
                 <p
                   className="text-sm leading-relaxed mb-2"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
                   {comment.text}
                 </p>
-
-                {/* Comment Actions */}
                 <div className="flex items-center gap-3">
                   <button
                     id={`comment-like-${comment.id}`}
@@ -446,8 +432,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
                     {reportedComments[comment.id] ? 'Reported' : 'Report'}
                   </button>
                 </div>
-
-                {/* Inline Reply Box */}
                 {replyingTo === comment.id && (
                   <div className="mt-2 flex gap-2 animate-slide-down">
                     <input
@@ -480,8 +464,6 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           </div>
         ))}
       </div>
-
-      {/* ── Report Comment Popup ───────────────────────────── */}
       {reportingCommentId &&
         createPortal(
           <div

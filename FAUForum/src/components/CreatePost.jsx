@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { TAGS } from '../data/mockData';
 
 const ImageIcon = () => (
@@ -25,7 +26,9 @@ const TagIcon = () => (
 
 const AVAILABLE_TAGS = TAGS.filter(t => t.id !== 'all');
 
-export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar, onLoginPrompt, onPostCreated }) {
+export default function CreatePost({ onPostCreated }) {
+  const { user, isLoggedIn } = useAuth();
+  const currentUserAvatar = user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=b6e3f4`;
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
@@ -51,11 +54,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
   };
 
   const handleFocus = () => {
-    if (!isLoggedIn) {
-      onLoginPrompt();
-      return;
-    }
-
     setExpanded(true);
   };
 
@@ -85,12 +83,6 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
       setError('Please choose an image file.');
       return;
     }
-
-    // TODO before production:
-    // This demo stores uploaded images as base64 text in SQLite.
-    // That is okay for small class testing, but it will not scale.
-    // For a real app, upload images to cloud/file storage instead
-    // and only save the image URL in the database.
     if (file.size > 1 * 1024 * 1024) {
       setError('Image must be under 1MB for this demo.');
       return;
@@ -131,7 +123,7 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
         body: JSON.stringify({
           title: title.trim(),
           content: body.trim() || title.trim(),
-          username: currentUser?.name || 'Anonymous',
+          username: user?.username || 'Anonymous',
           tags: selectedTags,
           image_url: imageUrl.trim(),
           link_url: linkUrl.trim(),
@@ -194,11 +186,10 @@ export default function CreatePost({ isLoggedIn, currentUser, currentUserAvatar,
               <input
                 id="post-title-input"
                 type="text"
-                placeholder={isLoggedIn ? "What's on your mind, FAU Owl? 🦉" : "Log in to post…"}
+                placeholder="What's on your mind, FAU Owl? 🦉"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 onFocus={handleFocus}
-                readOnly={!isLoggedIn}
                 className="w-full text-sm font-medium py-2 border-b transition-colors"
                 style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
                 aria-label="Post title"
