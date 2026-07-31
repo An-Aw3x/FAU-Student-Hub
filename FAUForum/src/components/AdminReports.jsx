@@ -1,4 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Pin,
+  ShieldCheck,
+} from 'lucide-react';
 
 const REPORT_LABELS = {
   spam: 'Spam',
@@ -15,11 +23,13 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
   const [openItems, setOpenItems] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionStatus, setActionStatus] = useState(null);
 
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
+      setActionStatus(null);
 
       const response = await fetch('http://localhost:3001/api/reports');
 
@@ -36,11 +46,12 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadReports();
-  }, []);
+    const initialLoadId = window.setTimeout(loadReports, 0);
+    return () => window.clearTimeout(initialLoadId);
+  }, [loadReports]);
 
   const formatReason = (reason) => {
     if (!reason) return 'No reason listed';
@@ -66,6 +77,8 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     if (!confirmDelete) return;
 
     try {
+      setActionStatus(null);
+
       const response = await fetch(`http://localhost:3001/api/posts/${postId}`, {
         method: 'DELETE',
       });
@@ -77,9 +90,16 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
       setReportedPosts(prev => prev.filter(post => Number(post.id) !== Number(postId)));
       setReportedComments(prev => prev.filter(comment => Number(comment.post_id) !== Number(postId)));
       onPostDeleted?.(postId);
+      setActionStatus({
+        type: 'success',
+        message: 'Post deleted from the community feed.',
+      });
     } catch (err) {
       console.error(err);
-      alert('Could not delete the post.');
+      setActionStatus({
+        type: 'error',
+        message: err.message || 'Could not delete the post.',
+      });
     }
   };
 
@@ -89,6 +109,8 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     if (!confirmDelete) return;
 
     try {
+      setActionStatus(null);
+
       const response = await fetch(`http://localhost:3001/api/comments/${commentId}`, {
         method: 'DELETE',
       });
@@ -98,16 +120,25 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
       }
 
       setReportedComments(prev => prev.filter(comment => Number(comment.id) !== Number(commentId)));
+      setActionStatus({
+        type: 'success',
+        message: 'Comment deleted.',
+      });
     } catch (err) {
       console.error(err);
-      alert('Could not delete the comment.');
+      setActionStatus({
+        type: 'error',
+        message: err.message || 'Could not delete the comment.',
+      });
     }
   };
 
   const handleTogglePin = async (post) => {
-    const nextPinnedState = !Boolean(post.isPinned || post.is_pinned);
+    const nextPinnedState = !(post.isPinned || post.is_pinned);
 
     try {
+      setActionStatus(null);
+
       const response = await fetch(`http://localhost:3001/api/posts/${post.id}/pin`, {
         method: 'PATCH',
         headers: {
@@ -135,9 +166,18 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
             : item
         )
       );
+      setActionStatus({
+        type: 'success',
+        message: nextPinnedState
+          ? 'Post featured in the community feed.'
+          : 'Post removed from featured posts.',
+      });
     } catch (err) {
       console.error(err);
-      alert('Could not update pinned post.');
+      setActionStatus({
+        type: 'error',
+        message: err.message || 'Could not update the featured post.',
+      });
     }
   };
 
@@ -152,36 +192,6 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     const isOpen = !!openItems[itemKey];
     const reportDetails = details || [];
 
-    if (!isAdmin) {
-      return (
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div
-            className="rounded-2xl p-5 text-center"
-            style={{
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            <h1
-              className="font-display font-bold text-xl mb-2"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              Admin access only
-            </h1>
-
-            <p className="text-sm mb-4">
-              You need admin access to view reports.
-            </p>
-
-            <button onClick={onBack} className="vote-btn">
-              Back to Feed
-            </button>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="mt-3">
         <button
@@ -194,7 +204,12 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
             color: 'var(--color-text-primary)',
           }}
         >
-          {isOpen ? '▾' : '▸'} View report details
+          {isOpen ? (
+            <ChevronDown className="inline-block mr-1" size={15} aria-hidden="true" />
+          ) : (
+            <ChevronRight className="inline-block mr-1" size={15} aria-hidden="true" />
+          )}
+          View report details
           {reportDetails.length > 0 ? ` (${reportDetails.length})` : ''}
         </button>
 
@@ -253,15 +268,31 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
     );
   };
 
+  if (!isAdmin) {
+    return (
+      <section className="max-w-4xl mx-auto animate-fade-in">
+        <button type="button" onClick={onBack} className="page-back-button">
+          Back to feed
+        </button>
+        <div className="resource-page-empty">
+          <ShieldCheck size={28} strokeWidth={1.8} aria-hidden="true" />
+          <h1>Admin access only</h1>
+          <p>You need an authorized OwlNet administrator account to review reports.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div>
           <h1
-            className="font-display font-bold text-xl"
+            className="font-display flex items-center gap-2 text-xl font-bold"
             style={{ color: 'var(--color-text-primary)' }}
           >
-            🛡️ Admin Reports
+            <ShieldCheck size={22} strokeWidth={2} aria-hidden="true" />
+            <span>Admin Reports</span>
           </h1>
 
           <p
@@ -290,9 +321,26 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
       )}
 
       {error && (
-        <p className="text-sm" style={{ color: 'var(--color-error)' }}>
-          {error}
-        </p>
+        <div className="auth-error admin-status-banner mb-4 flex items-start gap-2" role="alert">
+          <AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {actionStatus && (
+        <div
+          className={`${
+            actionStatus.type === 'error' ? 'auth-error' : 'auth-success'
+          } admin-status-banner mb-4 flex items-start gap-2`}
+          role={actionStatus.type === 'error' ? 'alert' : 'status'}
+        >
+          {actionStatus.type === 'error' ? (
+            <AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+          )}
+          <span>{actionStatus.message}</span>
+        </div>
       )}
 
       {!loading && !error && reportedPosts.length === 0 && reportedComments.length === 0 && (
@@ -369,7 +417,7 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
 
                 {renderReportDetails(`post-${post.id}`, post.reportDetails)}
 
-                <div className="flex items-center gap-2 mt-3">
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
                   <button
                     type="button"
                     onClick={() => onOpenPost?.(post.id)}
@@ -377,6 +425,15 @@ export default function AdminReports({ isAdmin, onBack, onOpenPost, onPostDelete
                   >
                     View original post
                   </button>                  
+
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePin(post)}
+                    className="vote-btn"
+                  >
+                    <Pin size={14} aria-hidden="true" />
+                    {post.isPinned || post.is_pinned ? 'Remove feature' : 'Feature post'}
+                  </button>
 
                   <button
                     type="button"

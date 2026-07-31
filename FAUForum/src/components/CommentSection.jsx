@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Flag, ThumbsUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-const ThumbUpIcon = ({ filled }) => (
-  <svg width="14" height="14" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-  </svg>
-);
+import { getAvatarOrDefault, handleAvatarError } from '../utils/avatar';
 
-const ReportIcon = () => (
-  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M4 4v16" />
-    <path d="M4 4h13l-1.5 5L17 14H4" />
-  </svg>
-);
+const API_BASE = 'http://localhost:3001';
 
 const REPORT_REASONS = [
   { value: 'spam', label: 'Spam' },
@@ -23,78 +15,164 @@ const REPORT_REASONS = [
   { value: 'other', label: 'Other' },
 ];
 
-const parseCommentTimestamp = (createdAt) => {
+function parseCommentTimestamp(createdAt) {
   if (!createdAt) return null;
-
   if (createdAt instanceof Date) return createdAt;
-
   if (typeof createdAt === 'number') return new Date(createdAt);
 
   if (typeof createdAt === 'string') {
-    const trimmed = createdAt.trim();
+    const trimmedTimestamp = createdAt.trim();
+    const sqliteTimestamp = trimmedTimestamp.match(
+      /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?$/
+    );
 
-    const sqliteMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?$/);
-    if (sqliteMatch) {
-      const [, year, month, day, hour, minute, second] = sqliteMatch;
-      const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
-      if (!Number.isNaN(parsed.getTime())) return parsed;
+    if (sqliteTimestamp) {
+      const [, year, month, day, hour, minute, second] = sqliteTimestamp;
+      const parsedDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
     }
 
-    const normalized = trimmed.replace(' ', 'T');
-    const parsed = new Date(normalized);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
+    const normalizedDate = new Date(trimmedTimestamp.replace(' ', 'T'));
+    if (!Number.isNaN(normalizedDate.getTime())) return normalizedDate;
 
-    const fallback = new Date(trimmed);
-    if (!Number.isNaN(fallback.getTime())) return fallback;
+    const fallbackDate = new Date(trimmedTimestamp);
+    if (!Number.isNaN(fallbackDate.getTime())) return fallbackDate;
   }
 
   return null;
-};
+}
 
-const formatCommentTime = (createdAt) => {
+function formatCommentTime(createdAt) {
   const date = parseCommentTimestamp(createdAt);
   if (!date) return 'just now';
 
-  const now = new Date();
-  const diffMinutes = Math.max(0, Math.floor((now - date) / 60000));
+  const differenceInMinutes = Math.max(0, Math.floor((new Date() - date) / 60000));
 
-  if (diffMinutes < 1) return 'just now';
-  if (diffMinutes === 1) return '1 minute ago';
-  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+  if (differenceInMinutes < 1) return 'just now';
+  if (differenceInMinutes === 1) return '1 minute ago';
+  if (differenceInMinutes < 60) return `${differenceInMinutes} minutes ago`;
 
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours === 1) return '1 hour ago';
-  if (diffHours < 24) return `${diffHours} hours ago`;
+  const differenceInHours = Math.floor(differenceInMinutes / 60);
+  if (differenceInHours === 1) return '1 hour ago';
+  if (differenceInHours < 24) return `${differenceInHours} hours ago`;
 
   return date.toLocaleDateString([], {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
-};
-export default function CommentSection({ postId, onCommentCountChange }) {
+}
+
+function formatApiComment(comment, fallbackAvatar = '') {
+  const username = comment.username || 'Anonymous';
+
+  return {
+    id: comment.id,
+    user: {
+      name: username,
+      handle: `@${username}`,
+      avatar: getAvatarOrDefault(
+        comment.author_avatar || comment.avatar || fallbackAvatar
+      ),
+    },
+    text: comment.content,
+    time: formatCommentTime(comment.created_at),
+    likes: comment.likes || 0,
+    likedByCurrentUser: Boolean(comment.liked_by_current_user),
+    reports: comment.reports || 0,
+    reportReason: comment.report_reason || '',
+  };
+}
+
+function formatInitialComment(comment, index, postId) {
+  const username =
+    comment.user?.name || comment.username || comment.author || comment.name || 'OwlNet student';
+
+  return {
+    id: comment.id ?? `${postId}-comment-${index}`,
+    user: {
+      name: username,
+      handle: comment.user?.handle || comment.handle || `@${username.replace(/\s+/g, '')}`,
+      avatar: getAvatarOrDefault(
+        comment.user?.avatar ||
+          comment.author_avatar ||
+          comment.avatar ||
+          comment.profile_avatar
+      ),
+    },
+    text: comment.text || comment.content || comment.body || '',
+    time: comment.time || formatCommentTime(comment.created_at),
+    likes: Number(comment.likes) || 0,
+    likedByCurrentUser: Boolean(comment.likedByCurrentUser || comment.liked_by_current_user),
+    reports: Number(comment.reports) || 0,
+    reportReason: comment.reportReason || comment.report_reason || '',
+  };
+}
+
+function getReplyMention(comment) {
+  if (comment.user.handle?.startsWith('@')) {
+    return comment.user.handle;
+  }
+
+  return `@${comment.user.name.replace(/\s+/g, '')}`;
+}
+
+export default function CommentSection({
+  postId,
+  onCommentCountChange,
+  initialComments = [],
+  isLocal = false,
+  onActivity,
+}) {
   const { user } = useAuth();
+  const currentUsername = user?.username || 'Anonymous';
   const [replyingTo, setReplyingTo] = useState(null);
-  const [likedComments, setLikedComments] = useState({});
+  const [replyText, setReplyText] = useState('');
+  const [likedComments, setLikedComments] = useState(() => {
+    const likedCommentMap = {};
+
+    if (isLocal) {
+      initialComments.forEach((comment, index) => {
+        const formattedComment = formatInitialComment(comment, index, postId);
+        if (formattedComment.likedByCurrentUser) {
+          likedCommentMap[formattedComment.id] = true;
+        }
+      });
+    }
+
+    return likedCommentMap;
+  });
   const [reportedComments, setReportedComments] = useState({});
   const [reportingCommentId, setReportingCommentId] = useState(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportError, setReportError] = useState('');
   const [newComment, setNewComment] = useState('');
-  const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [comments, setComments] = useState(() =>
+    isLocal
+      ? initialComments.map((comment, index) => formatInitialComment(comment, index, postId))
+      : []
+  );
+  const [loading, setLoading] = useState(!isLocal);
+  const [loadError, setLoadError] = useState('');
+  const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
+    if (isLocal || !loading) {
+      onCommentCountChange?.(comments.length);
+    }
+  }, [comments.length, isLocal, loading, onCommentCountChange]);
+
+  useEffect(() => {
+    if (isLocal) return undefined;
+
     let isMounted = true;
 
     async function loadComments() {
       try {
-        setLoading(true);
-        setError('');
-        setComments([]);
-
         const response = await fetch(
-          `http://localhost:3001/api/posts/${postId}/comments?username=${encodeURIComponent(user?.username || '')}`
+          `${API_BASE}/api/posts/${postId}/comments?username=${encodeURIComponent(currentUsername)}`
         );
 
         if (!response.ok) {
@@ -102,42 +180,26 @@ export default function CommentSection({ postId, onCommentCountChange }) {
         }
 
         const data = await response.json();
-
         const formattedComments = [...data]
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .map(comment => ({
-            id: comment.id,
-            user: {
-              name: comment.username,
-              handle: `@${comment.username}`,
-              avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${comment.username}&backgroundColor=e0f2fe`,
-            },
-            text: comment.content,
-            time: formatCommentTime(comment.created_at),
-            likes: comment.likes || 0,
-            likedByCurrentUser: Boolean(comment.liked_by_current_user),
-            reports: comment.reports || 0,
-            reportReason: comment.report_reason || '',
-          }));
+          .sort((first, second) => new Date(second.created_at) - new Date(first.created_at))
+          .map(comment => formatApiComment(comment));
+        const likedCommentMap = {};
 
-        const likedMap = {};
-
-        formattedComments.forEach(comment => {
+        formattedComments.forEach((comment) => {
           if (comment.likedByCurrentUser) {
-            likedMap[comment.id] = true;
+            likedCommentMap[comment.id] = true;
           }
         });
 
         if (isMounted) {
           setComments(formattedComments);
-          setLikedComments(likedMap);
-          onCommentCountChange?.(formattedComments.length);
+          setLikedComments(likedCommentMap);
+          setLoadError('');
         }
-      } catch (err) {
+      } catch (error) {
         if (isMounted) {
-          setError(err.message);
+          setLoadError(error.message);
           setComments([]);
-          onCommentCountChange?.(0);
         }
       } finally {
         if (isMounted) {
@@ -151,28 +213,48 @@ export default function CommentSection({ postId, onCommentCountChange }) {
     return () => {
       isMounted = false;
     };
-  }, [postId, onCommentCountChange]);
+  }, [currentUsername, isLocal, postId]);
 
-  const toggleLike = async (commentId) => {
+  async function toggleLike(commentId) {
+    setFeedback(null);
+
+    if (isLocal) {
+      const willLikeComment = !likedComments[commentId];
+
+      setComments((previousComments) =>
+        previousComments.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likes: Math.max(0, comment.likes + (willLikeComment ? 1 : -1)),
+              }
+            : comment
+        )
+      );
+      setLikedComments((previousLikes) => ({
+        ...previousLikes,
+        [commentId]: willLikeComment,
+      }));
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:3001/api/comments/${commentId}/like`, {
+      const response = await fetch(`${API_BASE}/api/comments/${commentId}/like`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          username: user?.username || 'Anonymous',
-        }),
+        body: JSON.stringify({ username: currentUsername }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to like comment.');
+        throw new Error('Could not update this comment like. Please try again.');
       }
 
       const updatedComment = await response.json();
 
-      setComments(prev =>
-        prev.map(comment =>
+      setComments((previousComments) =>
+        previousComments.map((comment) =>
           comment.id === commentId
             ? {
                 ...comment,
@@ -181,42 +263,134 @@ export default function CommentSection({ postId, onCommentCountChange }) {
             : comment
         )
       );
-
-      setLikedComments(prev => ({
-        ...prev,
-        [commentId]: updatedComment.liked,
+      setLikedComments((previousLikes) => ({
+        ...previousLikes,
+        [commentId]: Boolean(updatedComment.liked),
       }));
-    } catch (err) {
-      console.error(err);
-      alert('Could not update comment like.');
+    } catch (error) {
+      console.error(error);
+      setFeedback({ type: 'error', message: error.message });
     }
-  };
+  }
 
-  const handleReportComment = async (reason) => {
-    if (!reportingCommentId || reportedComments[reportingCommentId]) {
+  async function submitComment(content) {
+    const trimmedComment = content.trim();
+    if (!trimmedComment || commentSubmitting) return false;
+
+    setCommentSubmitting(true);
+    setFeedback(null);
+
+    try {
+      let formattedComment;
+
+      if (isLocal) {
+        formattedComment = {
+          id: `local-${postId}-${Date.now()}`,
+          user: {
+            name: currentUsername,
+            handle: `@${currentUsername}`,
+            avatar: getAvatarOrDefault(user?.avatar),
+          },
+          time: 'just now',
+          text: trimmedComment,
+          likes: 0,
+          reports: 0,
+          reportReason: '',
+        };
+      } else {
+        const response = await fetch(`${API_BASE}/api/posts/${postId}/comments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: trimmedComment,
+            username: currentUsername,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Could not post your comment.');
+        }
+
+        formattedComment = formatApiComment(await response.json(), user?.avatar);
+      }
+
+      const nextCommentCount = comments.length + 1;
+      setComments((previousComments) => [formattedComment, ...previousComments]);
+      setFeedback({ type: 'success', message: 'Comment posted.' });
+      onActivity?.({
+        type: 'comment-created',
+        postId,
+        comment: formattedComment,
+        commentCount: nextCommentCount,
+        isLocal,
+      });
+
+      return true;
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message });
+      return false;
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+
+  async function handleCommentSubmit(event) {
+    event.preventDefault();
+
+    const didSubmit = await submitComment(newComment);
+    if (didSubmit) {
+      setNewComment('');
+    }
+  }
+
+  async function handleReplySubmit(event, comment) {
+    event.preventDefault();
+
+    const trimmedReply = replyText.trim();
+    if (!trimmedReply) return;
+
+    const replyContent = `${getReplyMention(comment)} ${trimmedReply}`;
+    const didSubmit = await submitComment(replyContent);
+
+    if (didSubmit) {
+      setReplyText('');
+      setReplyingTo(null);
+    }
+  }
+
+  async function handleReportComment(reason) {
+    if (reportingCommentId == null || reportedComments[reportingCommentId] || isLocal) {
       return;
     }
 
     try {
       setReportSubmitting(true);
+      setReportError('');
 
-      const response = await fetch(`http://localhost:3001/api/comments/${reportingCommentId}/report`, {
+      const response = await fetch(`${API_BASE}/api/comments/${reportingCommentId}/report`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason,
+          username: user?.username,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to report comment.');
+        throw new Error('Could not submit this report. Please try again.');
       }
 
       const updatedComment = await response.json();
+      const reportedCommentId = reportingCommentId;
 
-      setComments(prev =>
-        prev.map(comment =>
-          comment.id === reportingCommentId
+      setComments((previousComments) =>
+        previousComments.map((comment) =>
+          comment.id === reportedCommentId
             ? {
                 ...comment,
                 reports: updatedComment.reports,
@@ -225,98 +399,64 @@ export default function CommentSection({ postId, onCommentCountChange }) {
             : comment
         )
       );
-
-      setReportedComments(prev => ({
-        ...prev,
-        [reportingCommentId]: true,
+      setReportedComments((previousReports) => ({
+        ...previousReports,
+        [reportedCommentId]: true,
       }));
-
       setReportingCommentId(null);
-    } catch (err) {
-      console.error(err);
-      alert('Could not report the comment.');
+      setFeedback({ type: 'success', message: 'Report submitted for moderator review.' });
+      onActivity?.({
+        type: 'comment-reported',
+        postId,
+        commentId: reportedCommentId,
+        reason,
+        isLocal: false,
+      });
+    } catch (error) {
+      console.error(error);
+      setReportError(error.message);
     } finally {
       setReportSubmitting(false);
     }
-  };
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
+  }
 
-    const trimmedComment = newComment.trim();
-    if (!trimmedComment) return;
+  function openReply(commentId) {
+    const isClosingReply = replyingTo === commentId;
+    setReplyingTo(isClosingReply ? null : commentId);
+    setReplyText('');
+    setFeedback(null);
+  }
 
-    try {
-      setError('');
+  function closeReportDialog() {
+    if (reportSubmitting) return;
+    setReportingCommentId(null);
+    setReportError('');
+  }
 
-      const response = await fetch(`http://localhost:3001/api/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: trimmedComment,
-          username: user?.username || 'Anonymous',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to post comment.');
-      }
-
-      const createdComment = await response.json();
-
-      const formattedComment = {
-        id: createdComment.id,
-        user: {
-          name: createdComment.username,
-          handle: `@${createdComment.username}`,
-          avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${createdComment.username}&backgroundColor=e0f2fe`,
-        },
-        time: formatCommentTime(createdComment.created_at || new Date().toISOString()),
-        text: createdComment.content,
-        likes: 0,
-        reports: 0,
-        reportReason: '',
-      };
-
-      setComments(prev => {
-        const nextComments = [formattedComment, ...prev];
-        onCommentCountChange?.(nextComments.length);
-        return nextComments;
-      });
-
-      setNewComment('');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
   return (
-    <div className="mt-4 pt-4 animate-fade-in" style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div className="comment-section mt-4 pt-4 animate-fade-in border-t border-[var(--color-border)]">
       <form
         onSubmit={handleCommentSubmit}
         id={`comment-form-${postId}`}
-        className="flex gap-3 mb-5"
+        className="comment-composer flex gap-3 mb-5"
       >
         <img
-          src={user?.avatar || "https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=e0f2fe"}
+          src={getAvatarOrDefault(user?.avatar)}
           alt="Your avatar"
-          className="w-8 h-8 rounded-full avatar-ring shrink-0 mt-1"
+          className="comment-composer-avatar w-8 h-8 rounded-full avatar-ring shrink-0 mt-1"
+          onError={handleAvatarError}
         />
 
-        <div
-          className="flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-3"
-          style={{
-            background: 'var(--color-surface-3)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
+        <div className="comment-composer-control flex-1 rounded-md px-3 py-2.5 flex items-center gap-3 bg-[var(--color-surface-3)] border border-[var(--color-border)]">
           <input
             type="text"
-            placeholder="Write a comment…"
+            placeholder="Write a comment..."
             value={newComment}
-            onChange={e => setNewComment(e.target.value)}
-            className="flex-1 text-sm"
+            onChange={(event) => {
+              setNewComment(event.target.value);
+              setFeedback(null);
+            }}
+            className="comment-composer-input flex-1 text-sm"
             aria-label="Add a comment"
             id={`comment-input-${postId}`}
           />
@@ -324,185 +464,186 @@ export default function CommentSection({ postId, onCommentCountChange }) {
           {newComment.trim() && (
             <button
               type="submit"
-              className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 transition-all"
-              style={{
-                background: 'var(--color-owl-blue)',
-                color: 'white',
-              }}
+              disabled={commentSubmitting}
+              className="comment-submit-button text-xs font-bold px-3 py-1.5 rounded-sm shrink-0 transition-all bg-[var(--color-portal-action)] text-white disabled:opacity-60"
             >
-              Post
+              {commentSubmitting ? 'Posting...' : 'Post'}
             </button>
           )}
         </div>
       </form>
-      {loading && (
-        <p className="text-sm text-[color:var(--color-text-muted)]">
-          Loading comments...
+
+      {loading && <p className="comment-status text-sm text-[color:var(--color-text-muted)]">Loading comments...</p>}
+
+      {loadError && (
+        <p className="comment-status comment-status-error text-sm text-[color:var(--color-error)]" role="alert">
+          {loadError}
         </p>
       )}
 
-      {error && (
-        <p className="text-sm text-[color:var(--color-error)]">
-          {error}
+      {feedback && (
+        <p
+          className={`comment-status comment-status-${feedback.type} text-sm ${
+            feedback.type === 'error'
+              ? 'text-[color:var(--color-error)]'
+              : 'text-[color:var(--color-success)]'
+          }`}
+          role={feedback.type === 'error' ? 'alert' : 'status'}
+        >
+          {feedback.message}
         </p>
       )}
 
-      {!loading && !error && comments.length === 0 && (
-        <p className="text-sm text-[color:var(--color-text-muted)]">
-          No comments yet. Be the first to comment!
+      {!loading && !loadError && comments.length === 0 && (
+        <p className="comment-empty text-sm text-[color:var(--color-text-muted)]">
+          No comments yet. Be the first to comment.
         </p>
       )}
 
-      <div className="flex flex-col gap-4">
-        {comments.map(comment => (
-          <div key={comment.id} className="flex gap-3">
+      <div className="comment-list flex flex-col gap-4">
+        {comments.map((comment) => (
+          <article key={comment.id} className="comment-row flex gap-3">
             <img
               src={comment.user.avatar}
-              alt={comment.user.name}
-              className="w-7 h-7 rounded-full avatar-ring shrink-0 mt-0.5"
+              alt={`${comment.user.name} avatar`}
+              className="comment-avatar w-7 h-7 rounded-full avatar-ring shrink-0 mt-0.5"
+              onError={handleAvatarError}
             />
 
-            <div className="flex-1 min-w-0">
+            <div className="comment-content flex-1 min-w-0">
               <div className="comment-item">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
+                <header className="comment-meta flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="comment-author text-xs font-bold text-[color:var(--color-text-primary)]">
                     {comment.user.name}
                   </span>
-
-                  <span
-                    className="text-xs"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
+                  <span className="comment-handle text-xs text-[color:var(--color-text-muted)]">
                     {comment.user.handle}
                   </span>
-
-                  <span
-                    className="text-xs"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
+                  <span className="comment-time text-xs text-[color:var(--color-text-muted)]">
                     · {comment.time}
                   </span>
-                </div>
-                <p
-                  className="text-sm leading-relaxed mb-2"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
+                </header>
+
+                <p className="comment-text text-sm leading-relaxed mb-2 text-[color:var(--color-text-secondary)]">
                   {comment.text}
                 </p>
-                <div className="flex items-center gap-3">
+
+                <div className="comment-actions flex items-center gap-3">
                   <button
+                    type="button"
                     id={`comment-like-${comment.id}`}
                     onClick={() => toggleLike(comment.id)}
-                    className={`flex items-center gap-1.5 text-xs font-semibold transition-all ${
+                    className={`comment-action-button flex items-center gap-1.5 text-xs font-semibold transition-all ${
                       likedComments[comment.id]
                         ? 'text-[color:var(--color-upvote)]'
                         : 'text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)]'
                     }`}
                     aria-label={`Like comment by ${comment.user.name}`}
-                    aria-pressed={!!likedComments[comment.id]}
+                    aria-pressed={Boolean(likedComments[comment.id])}
                   >
-                    <ThumbUpIcon filled={likedComments[comment.id]} />
+                    <ThumbsUp
+                      size={14}
+                      strokeWidth={2}
+                      fill={likedComments[comment.id] ? 'currentColor' : 'none'}
+                      aria-hidden="true"
+                    />
                     {comment.likes}
                   </button>
 
                   <button
+                    type="button"
                     id={`comment-reply-${comment.id}`}
-                    onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                    className="text-xs font-semibold transition-all hover:text-[color:var(--color-text-primary)]"
-                    style={{ color: 'var(--color-text-muted)' }}
+                    onClick={() => openReply(comment.id)}
+                    className="comment-action-button text-xs font-semibold transition-all text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
+                    aria-expanded={replyingTo === comment.id}
                   >
                     Reply
                   </button>
 
-                  <button
-                    id={`comment-report-${comment.id}`}
-                    onClick={() => setReportingCommentId(comment.id)}
-                    disabled={!!reportedComments[comment.id]}
-                    className="flex items-center gap-1 text-xs font-semibold transition-all hover:text-[color:var(--color-text-primary)]"
-                    style={{
-                      color: reportedComments[comment.id]
-                        ? '#F87171'
-                        : 'var(--color-text-muted)',
-                    }}
-                  >
-                    <ReportIcon />
-                    {reportedComments[comment.id] ? 'Reported' : 'Report'}
-                  </button>
+                  {!isLocal && (
+                    <button
+                      type="button"
+                      id={`comment-report-${comment.id}`}
+                      onClick={() => {
+                        setReportingCommentId(comment.id);
+                        setReportError('');
+                      }}
+                      disabled={Boolean(reportedComments[comment.id])}
+                      className={`comment-action-button flex items-center gap-1 text-xs font-semibold transition-all ${
+                        reportedComments[comment.id]
+                          ? 'text-[color:var(--color-error)]'
+                          : 'text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]'
+                      }`}
+                    >
+                      <Flag size={14} strokeWidth={2} aria-hidden="true" />
+                      {reportedComments[comment.id] ? 'Reported' : 'Report'}
+                    </button>
+                  )}
                 </div>
+
                 {replyingTo === comment.id && (
-                  <div className="mt-2 flex gap-2 animate-slide-down">
+                  <form
+                    className="comment-reply-form mt-2 flex gap-2 animate-slide-down"
+                    onSubmit={(event) => handleReplySubmit(event, comment)}
+                  >
                     <input
                       type="text"
-                      placeholder={`Reply to ${comment.user.name}…`}
-                      className="flex-1 text-xs px-3 py-2 rounded-xl"
-                      style={{
-                        background: 'var(--color-surface-4)',
-                        border: '1px solid var(--color-border)',
-                        color: 'var(--color-text-primary)',
-                      }}
+                      placeholder={`Reply to ${comment.user.name}...`}
+                      value={replyText}
+                      onChange={(event) => setReplyText(event.target.value)}
+                      className="comment-reply-input flex-1 text-xs px-3 py-2 rounded-md bg-[var(--color-surface-4)] border border-[var(--color-border)] text-[color:var(--color-text-primary)]"
                       id={`reply-input-${comment.id}`}
                       aria-label={`Reply to ${comment.user.name}`}
+                      autoFocus
                     />
 
                     <button
-                      className="text-xs font-bold px-3 py-1.5 rounded-xl"
-                      style={{
-                        background: 'var(--color-owl-blue)',
-                        color: 'white',
-                      }}
-                      onClick={() => setReplyingTo(null)}
+                      type="submit"
+                      disabled={!replyText.trim() || commentSubmitting}
+                      className="comment-reply-submit text-xs font-bold px-3 py-1.5 rounded-sm bg-[var(--color-portal-action)] text-white disabled:opacity-60"
                     >
-                      Send
+                      {commentSubmitting ? 'Sending...' : 'Send'}
                     </button>
-                  </div>
+                  </form>
                 )}
               </div>
             </div>
-          </div>
+          </article>
         ))}
       </div>
-      {reportingCommentId &&
+
+      {!isLocal &&
+        reportingCommentId != null &&
         createPortal(
-          <div
-            className="fixed inset-0 flex items-center justify-center px-4"
-            style={{
-              background: 'rgba(0, 0, 0, 0.55)',
-              zIndex: 999999,
-            }}
-          >
+          <div className="modal-backdrop comment-report-backdrop">
             <div
-              className="w-full max-w-sm rounded-2xl p-4 shadow-xl max-h-[80vh] overflow-y-auto"
-              style={{
-                background: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                zIndex: 1000000,
-              }}
+              className="report-dialog comment-report-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="comment-report-title"
             >
-              <h3 className="font-bold text-base mb-2">Report comment</h3>
+              <h3 id="comment-report-title" className="font-bold text-base mb-2">
+                Report comment
+              </h3>
 
-              <p
-                className="text-sm mb-4"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
-                Why are you reporting this comment?
-              </p>
+              <p className="report-dialog-copy">Why are you reporting this comment?</p>
 
-              <div className="flex flex-col gap-2">
-                {REPORT_REASONS.map(reason => (
+              {reportError && (
+                <p
+                  className="comment-report-error text-sm mb-3 text-[color:var(--color-error)]"
+                  role="alert"
+                >
+                  {reportError}
+                </p>
+              )}
+
+              <div className="report-reasons">
+                {REPORT_REASONS.map((reason) => (
                   <button
                     key={reason.value}
+                    type="button"
                     onClick={() => handleReportComment(reason.value)}
                     disabled={reportSubmitting}
-                    className="text-left px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
-                    style={{
-                      background: 'var(--color-surface-3)',
-                      color: 'var(--color-text-primary)',
-                      border: '1px solid var(--color-border)',
-                    }}
                   >
                     {reason.label}
                   </button>
@@ -510,14 +651,10 @@ export default function CommentSection({ postId, onCommentCountChange }) {
               </div>
 
               <button
-                onClick={() => setReportingCommentId(null)}
+                type="button"
+                onClick={closeReportDialog}
                 disabled={reportSubmitting}
-                className="mt-4 w-full px-3 py-2 rounded-xl text-sm font-bold"
-                style={{
-                  background: 'transparent',
-                  color: 'var(--color-text-muted)',
-                  border: '1px solid var(--color-border)',
-                }}
+                className="button-secondary mt-4 w-full"
               >
                 Cancel
               </button>

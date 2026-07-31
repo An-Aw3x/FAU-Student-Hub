@@ -1,20 +1,8 @@
 import { useState } from 'react';
+import { CheckCircle2, Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const EyeIcon = () => (
-  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-
-const EyeOffIcon = () => (
-  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-);
-
-const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
+const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@fau\.edu$/i;
 
 export default function RegisterPage({ onSwitchToLogin, onClose }) {
   const { register } = useAuth();
@@ -72,7 +60,7 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
     setSubmitting(true);
 
     try {
-      await register(cleanUsername, cleanEmail, password, testEmail.trim().toLowerCase());
+      await register(cleanUsername, cleanEmail, password, testEmail);
 
       setSuccessMessage('Account created. Check your FAU email to verify your account before logging in.');
 
@@ -98,16 +86,15 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
             className="absolute top-4 right-4 p-1.5 rounded-lg transition-all"
             style={{ color: 'var(--color-text-muted)' }}
           >
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+            <X size={18} aria-hidden="true" />
           </button>
         )}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 text-3xl"
-            style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))' }}>
-            🦉
-          </div>
+          <img
+            src="/fau-owl-logo.png"
+            alt="OwlNet"
+            className="mx-auto mb-4 h-16 w-16 object-contain"
+          />
           <h1 className="font-display font-bold text-2xl mb-1" style={{ color: 'var(--color-text-primary)' }}>
             Join OwlNet
           </h1>
@@ -123,40 +110,11 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
         )}
 
         {successMessage && (
-          <div
-            className="mb-4 animate-slide-down rounded-2xl px-4 py-3 text-sm font-semibold"
-            style={{
-              background: 'rgba(34, 197, 94, 0.12)',
-              border: '1px solid rgba(34, 197, 94, 0.35)',
-              color: '#15803d',
-            }}
-          >
-            ✅ {successMessage}
+          <div className="auth-success mb-4 animate-slide-down" role="status">
+            <CheckCircle2 size={17} aria-hidden="true" />
+            <span>{successMessage}</span>
           </div>
         )}
-          <div className="mb-4">
-            <label
-              htmlFor="register-test-email"
-              className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              Temporary personal email
-            </label>
-
-            <input
-              id="register-test-email"
-              type="email"
-              placeholder="Optional: personal email for local testing"
-              value={testEmail}
-              onChange={(e) => setTestEmail(e.target.value)}
-              className="auth-input"
-              autoComplete="email"
-            />
-
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Temporary testing only. FAU may block localhost links, so this sends a copy of the verification email to a personal inbox. Remove before deployment.
-            </p>
-          </div>
         <form onSubmit={handleSubmit} id="register-form" noValidate>
           <div className="mb-4">
             <label htmlFor="register-username" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
@@ -192,6 +150,29 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
             {errors.email && <p className="auth-field-error">{errors.email}</p>}
           </div>
           <div className="mb-4">
+            <label
+              htmlFor="test-email"
+              className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Temporary Personal Email
+            </label>
+
+            <input
+              id="test-email"
+              type="email"
+              placeholder="Optional for local testing"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className="auth-input"
+              autoComplete="email"
+            />
+
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Optional: sends a copy of the verification link here for local testing.
+            </p>
+          </div>
+          <div className="mb-4">
             <label htmlFor="register-password" className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
               style={{ color: 'var(--color-text-muted)' }}>
               Password
@@ -214,7 +195,11 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
                 tabIndex={-1}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                {showPassword ? (
+                  <EyeOff size={18} aria-hidden="true" />
+                ) : (
+                  <Eye size={18} aria-hidden="true" />
+                )}
               </button>
             </div>
             {errors.password && <p className="auth-field-error">{errors.password}</p>}
@@ -242,7 +227,11 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
                 tabIndex={-1}
                 aria-label={showConfirm ? 'Hide password' : 'Show password'}
               >
-                {showConfirm ? <EyeOffIcon /> : <EyeIcon />}
+                {showConfirm ? (
+                  <EyeOff size={18} aria-hidden="true" />
+                ) : (
+                  <Eye size={18} aria-hidden="true" />
+                )}
               </button>
             </div>
             {errors.confirmPassword && <p className="auth-field-error">{errors.confirmPassword}</p>}
@@ -251,8 +240,7 @@ export default function RegisterPage({ onSwitchToLogin, onClose }) {
             type="submit"
             id="register-submit-btn"
             disabled={submitting}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))', color: 'white' }}
+            className="auth-submit"
           >
             {submitting ? 'Creating Account...' : 'Create Account'}
           </button>
