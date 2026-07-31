@@ -1,17 +1,53 @@
 import { useState } from 'react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  CheckCircle2,
+  ChevronRight,
+  Copy,
+  Eye,
+  LogOut,
+  Mail,
+  Moon,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sun,
+  Trash2,
+  UserRound,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const ChevronRight = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-);
+const SETTINGS_TABS = [
+  { id: 'account', label: 'Account', icon: UserRound },
+  { id: 'profile', label: 'Profile', icon: Eye },
+  { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
+  { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+];
+
+function SettingsInfoRow({ icon: Icon, title, description }) {
+  return (
+    <article className="settings-row settings-info-row">
+      <span className="flex min-w-0 items-start gap-3">
+        <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+          <Icon size={17} strokeWidth={2} aria-hidden="true" />
+        </span>
+
+        <span className="min-w-0">
+          <span className="settings-title block">{title}</span>
+          <span className="settings-subtitle block">{description}</span>
+        </span>
+      </span>
+    </article>
+  );
+}
 
 export default function SettingsPage({ theme, onThemeToggle, onBack, onOpenProfile }) {
   const { user, logout, deleteAccount } = useAuth();
 
   const [activeTab, setActiveTab] = useState('account');
-  const [copied, setCopied] = useState('');
+  const [copyStatus, setCopyStatus] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -22,12 +58,26 @@ export default function SettingsPage({ theme, onThemeToggle, onBack, onOpenProfi
 
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(`${label} copied`);
-      setTimeout(() => setCopied(''), 1800);
+      setCopyStatus({ type: 'success', message: `${label} copied` });
     } catch {
-      setCopied('Could not copy');
-      setTimeout(() => setCopied(''), 1800);
+      setCopyStatus({ type: 'error', message: `Could not copy ${label.toLowerCase()}.` });
     }
+
+    setTimeout(() => setCopyStatus(null), 1800);
+  };
+
+  const openDeleteModal = () => {
+    setDeleteModalOpen(true);
+    setDeleteConfirmText('');
+    setDeleteError('');
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+
+    setDeleteModalOpen(false);
+    setDeleteConfirmText('');
+    setDeleteError('');
   };
 
   const handleDeleteAccount = async () => {
@@ -51,62 +101,71 @@ export default function SettingsPage({ theme, onThemeToggle, onBack, onOpenProfi
     }
   };
 
-  const tabs = ['account', 'profile', 'privacy', 'preferences', 'notifications'];
-
   return (
-    <section className="max-w-4xl mx-auto animate-fade-in">
-      <button
-        type="button"
-        onClick={onBack}
-        className="vote-btn mb-5"
-      >
-        Back to Feed
+    <section className="settings-page max-w-4xl mx-auto animate-fade-in">
+      <button type="button" onClick={onBack} className="page-back-button">
+        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+        Back to feed
       </button>
 
-      <div className="mb-6">
-        <h1 className="font-display font-bold text-3xl mb-2" style={{ color: 'var(--color-text-primary)' }}>
+      <header className="settings-page-header mb-6">
+        <p className="section-eyebrow">Account center</p>
+        <h1 className="font-display mb-2 text-3xl font-bold text-[color:var(--color-text-primary)]">
           Settings
         </h1>
-
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Manage your OwlNet account and app preferences.
+        <p className="text-sm text-[color:var(--color-text-muted)]">
+          Review your OwlNet account, profile, privacy, and display preferences.
         </p>
+      </header>
+
+      <div
+        className="settings-tabs mb-7 flex items-center gap-7 overflow-x-auto border-b border-[color:var(--color-border)]"
+        role="tablist"
+        aria-label="Settings sections"
+      >
+        {SETTINGS_TABS.map((tab) => {
+          const TabIcon = tab.icon;
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`settings-panel-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`settings-tab flex shrink-0 items-center gap-1.5 border-b-2 pb-3 text-sm font-semibold transition-colors ${
+                isActive
+                  ? 'border-[color:var(--color-text-primary)] text-[color:var(--color-text-primary)]'
+                  : 'border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)]'
+              }`}
+            >
+              <TabIcon size={15} strokeWidth={2} aria-hidden="true" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex items-center gap-7 mb-7 overflow-x-auto border-b" style={{ borderColor: 'var(--color-border)' }}>
-        {tabs.map(tab => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className="pb-3 text-sm font-semibold capitalize transition-all"
-            style={{
-              color: activeTab === tab ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              borderBottom: activeTab === tab ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {copied && (
+      {copyStatus && (
         <div
-          className="mb-5 rounded-2xl px-4 py-3 text-sm font-semibold"
-          style={{
-            background: 'rgba(34, 197, 94, 0.12)',
-            border: '1px solid rgba(34, 197, 94, 0.35)',
-            color: '#15803d',
-          }}
+          className={`${copyStatus.type === 'error' ? 'auth-error' : 'auth-success'} mb-5`}
+          role="status"
         >
-          {copied}
+          {copyStatus.type === 'error' ? (
+            <AlertCircle size={17} aria-hidden="true" />
+          ) : (
+            <CheckCircle2 size={17} aria-hidden="true" />
+          )}
+          <span>{copyStatus.message}</span>
         </div>
       )}
 
       {activeTab === 'account' && (
-        <div>
-          <h2 className="font-display font-bold text-xl mb-4" style={{ color: 'var(--color-text-primary)' }}>
-            General
+        <div id="settings-panel-account" role="tabpanel" aria-label="Account settings">
+          <h2 className="font-display mb-4 text-xl font-bold text-[color:var(--color-text-primary)]">
+            Account details
           </h2>
 
           <div className="settings-list">
@@ -114,190 +173,275 @@ export default function SettingsPage({ theme, onThemeToggle, onBack, onOpenProfi
               type="button"
               onClick={() => copyText('Email', user?.email)}
               className="settings-row"
+              aria-label="Copy email address"
             >
-              <div>
-                <p className="settings-title">Email address</p>
-                <p className="settings-subtitle">{user?.email || 'No email found'}</p>
-              </div>
-              <ChevronRight />
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+                  <Mail size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="settings-title block">Email address</span>
+                  <span className="settings-subtitle block break-all">
+                    {user?.email || 'No email found'}
+                  </span>
+                </span>
+              </span>
+
+              <span className="settings-inline-action button-secondary button-compact shrink-0">
+                <Copy size={14} aria-hidden="true" />
+                Copy
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => copyText('Username', user?.username)}
               className="settings-row"
+              aria-label="Copy username"
             >
-              <div>
-                <p className="settings-title">Username</p>
-                <p className="settings-subtitle">{user?.username || 'No username found'}</p>
-              </div>
-              <ChevronRight />
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+                  <UserRound size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="settings-title block">Username</span>
+                  <span className="settings-subtitle block break-all">
+                    {user?.username || 'No username found'}
+                  </span>
+                </span>
+              </span>
+
+              <span className="settings-inline-action button-secondary button-compact shrink-0">
+                <Copy size={14} aria-hidden="true" />
+                Copy
+              </span>
             </button>
 
-            <button
-              type="button"
-              onClick={onOpenProfile}
-              className="settings-row"
-            >
-              <div>
-                <p className="settings-title">Profile</p>
-                <p className="settings-subtitle">View and update your public profile.</p>
-              </div>
-              <ChevronRight />
+            <button type="button" onClick={onOpenProfile} className="settings-row">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+                  <Eye size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="settings-title block">Public profile</span>
+                  <span className="settings-subtitle block">
+                    Review and update the profile other OwlNet members can see.
+                  </span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0" aria-hidden="true" />
             </button>
           </div>
 
-          <h2 className="font-display font-bold text-xl mt-8 mb-4" style={{ color: 'var(--color-text-primary)' }}>
+          <h2 className="font-display mb-4 mt-8 text-xl font-bold text-[color:var(--color-text-primary)]">
             Account actions
           </h2>
 
           <div className="settings-list">
-            <button
-              type="button"
-              onClick={logout}
-              className="settings-row"
-              style={{ color: '#ef4444' }}
-            >
-              <div>
-                <p className="settings-title">Log out</p>
-                <p className="settings-subtitle">Sign out of your OwlNet account.</p>
-              </div>
-              <ChevronRight />
+            <button type="button" onClick={logout} className="settings-row">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-error)]">
+                  <LogOut size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="settings-title block">Log out</span>
+                  <span className="settings-subtitle block">
+                    Sign out of your OwlNet account on this device.
+                  </span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0" aria-hidden="true" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteModalOpen(true);
-                setDeleteConfirmText('');
-                setDeleteError('');
-              }}
-              className="settings-row"
-              style={{ color: '#ef4444' }}
-            >
-              <div>
-                <p className="settings-title" style={{ color: '#ef4444' }}>Delete account</p>
-                <p className="settings-subtitle">Permanently remove your OwlNet account.</p>
-              </div>
-              <ChevronRight />
+            <button type="button" onClick={openDeleteModal} className="settings-row">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-error)]">
+                  <Trash2 size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="settings-title block">Delete account</span>
+                  <span className="settings-subtitle block">
+                    Permanently remove your account and anonymize existing contributions.
+                  </span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0" aria-hidden="true" />
             </button>
           </div>
         </div>
       )}
 
       {activeTab === 'profile' && (
-        <div>
-          <h2 className="font-display font-bold text-xl mb-4" style={{ color: 'var(--color-text-primary)' }}>
+        <div id="settings-panel-profile" role="tabpanel" aria-label="Profile settings">
+          <h2 className="font-display mb-4 text-xl font-bold text-[color:var(--color-text-primary)]">
             Profile
           </h2>
 
           <div className="settings-list">
             <button type="button" onClick={onOpenProfile} className="settings-row">
-              <div>
-                <p className="settings-title">Open profile editor</p>
-                <p className="settings-subtitle">Change your avatar, display name, and profile info.</p>
-              </div>
-              <ChevronRight />
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+                  <UserRound size={17} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="settings-title block">Open profile editor</span>
+                  <span className="settings-subtitle block">
+                    Change your avatar, display name, and profile information.
+                  </span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0" aria-hidden="true" />
             </button>
           </div>
         </div>
       )}
 
+      {activeTab === 'privacy' && (
+        <div id="settings-panel-privacy" role="tabpanel" aria-label="Privacy information">
+          <h2 className="font-display mb-2 text-xl font-bold text-[color:var(--color-text-primary)]">
+            Privacy
+          </h2>
+          <p className="mb-4 text-sm text-[color:var(--color-text-muted)]">
+            Here is how your account information currently appears across OwlNet.
+          </p>
+
+          <div className="settings-list">
+            <SettingsInfoRow
+              icon={Eye}
+              title="Community visibility"
+              description="Your username, avatar, bio, and public posts can be seen by signed-in OwlNet members."
+            />
+            <SettingsInfoRow
+              icon={Mail}
+              title="Email privacy"
+              description="Your FAU email is used for account access and verification; it is not shown on your public profile."
+            />
+            <SettingsInfoRow
+              icon={ShieldCheck}
+              title="Reports and moderation"
+              description="Reports are sent to OwlNet moderators for review and are not displayed in the community feed."
+            />
+          </div>
+        </div>
+      )}
+
       {activeTab === 'preferences' && (
-        <div>
-          <h2 className="font-display font-bold text-xl mb-4" style={{ color: 'var(--color-text-primary)' }}>
+        <div id="settings-panel-preferences" role="tabpanel" aria-label="Display preferences">
+          <h2 className="font-display mb-4 text-xl font-bold text-[color:var(--color-text-primary)]">
             Preferences
           </h2>
 
           <div className="settings-list">
-            <button
-              type="button"
-              onClick={onThemeToggle}
-              className="settings-row"
-            >
-              <div>
-                <p className="settings-title">Display mode</p>
-                <p className="settings-subtitle">
-                  Currently using {theme === 'dark' ? 'dark mode' : 'light mode'}.
-                </p>
-              </div>
+            <button type="button" onClick={onThemeToggle} className="settings-row">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="settings-row-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-3)] text-[color:var(--color-accent)]">
+                  {theme === 'dark' ? (
+                    <Moon size={17} strokeWidth={2} aria-hidden="true" />
+                  ) : (
+                    <Sun size={17} strokeWidth={2} aria-hidden="true" />
+                  )}
+                </span>
+                <span>
+                  <span className="settings-title block">Display mode</span>
+                  <span className="settings-subtitle block">
+                    Currently using {theme === 'dark' ? 'dark mode' : 'light mode'}.
+                  </span>
+                </span>
+              </span>
 
-              <span className="vote-btn">
-                Switch to {theme === 'dark' ? 'Light' : 'Dark'}
+              <span className="settings-inline-action button-secondary button-compact shrink-0">
+                Switch to {theme === 'dark' ? 'light' : 'dark'}
               </span>
             </button>
           </div>
         </div>
       )}
 
-      {(activeTab === 'privacy' || activeTab === 'notifications') && (
+      {activeTab === 'notifications' && (
         <div
-          className="rounded-2xl p-6"
-          style={{
-            background: 'var(--color-surface-2)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text-secondary)',
-          }}
+          id="settings-panel-notifications"
+          role="tabpanel"
+          aria-label="Notification information"
         >
-          <h2 className="font-display font-bold text-xl mb-2 capitalize" style={{ color: 'var(--color-text-primary)' }}>
-            {activeTab}
+          <h2 className="font-display mb-2 text-xl font-bold text-[color:var(--color-text-primary)]">
+            Notifications
           </h2>
-
-          <p className="text-sm">
-            No {activeTab} settings are needed for the current demo yet.
+          <p className="mb-4 text-sm text-[color:var(--color-text-muted)]">
+            OwlNet currently uses in-app notifications only; there are no push notification
+            subscriptions to manage.
           </p>
+
+          <div className="settings-list">
+            <SettingsInfoRow
+              icon={Bell}
+              title="Notification center"
+              description="Use the bell in the university portal header to review activity available to your account."
+            />
+            <SettingsInfoRow
+              icon={CheckCircle2}
+              title="Read status"
+              description="Choose Mark all as read in the notification panel to clear the unread indicator."
+            />
+            <SettingsInfoRow
+              icon={Mail}
+              title="Account emails"
+              description="Verification and password-reset emails are handled separately from in-app notifications."
+            />
+          </div>
         </div>
       )}
 
       {deleteModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: 'rgba(0, 0, 0, 0.55)', backdropFilter: 'blur(3px)' }}
-        >
+        <div className="modal-backdrop">
           <div
-            className="w-full max-w-md rounded-2xl p-5 shadow-xl"
-            style={{
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-primary)',
-            }}
+            className="report-dialog settings-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            aria-describedby="delete-account-description"
           >
-            <h3 className="font-display font-bold text-xl mb-2">
+            <h3 id="delete-account-title" className="font-display mb-2 text-xl font-bold">
               Delete account?
             </h3>
 
-            <p className="text-sm mb-4" style={{ color: 'var(--color-text-muted)' }}>
-              This will permanently delete your account. Your old posts and comments will show as Deleted User.
+            <p id="delete-account-description" className="report-dialog-copy">
+              This permanently deletes your account. Existing posts and comments will remain under
+              the name Deleted User.
             </p>
 
             <label
-              className="block text-xs font-semibold mb-1.5 uppercase tracking-wider"
-              style={{ color: 'var(--color-text-muted)' }}
+              htmlFor="delete-account-confirmation"
+              className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[color:var(--color-text-muted)]"
             >
               Type DELETE to confirm
             </label>
 
             <input
+              id="delete-account-confirmation"
               value={deleteConfirmText}
-              onChange={(e) => {
-                setDeleteConfirmText(e.target.value);
+              onChange={(event) => {
+                setDeleteConfirmText(event.target.value);
                 setDeleteError('');
               }}
               className="auth-input mb-3"
               placeholder="DELETE"
+              aria-invalid={Boolean(deleteError)}
+              autoComplete="off"
+              autoFocus
             />
 
             {deleteError && (
-              <div className="auth-error mb-3">
-                {deleteError}
+              <div className="auth-error mb-3" role="alert">
+                <AlertCircle size={17} aria-hidden="true" />
+                <span>{deleteError}</span>
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteModalOpen(false)}
-                className="vote-btn"
+                onClick={closeDeleteModal}
+                className="button-secondary"
                 disabled={deleting}
               >
                 Cancel
@@ -306,10 +450,10 @@ export default function SettingsPage({ theme, onThemeToggle, onBack, onOpenProfi
               <button
                 type="button"
                 onClick={handleDeleteAccount}
-                className="vote-btn"
+                className="vote-btn danger"
                 disabled={deleting}
-                style={{ color: '#ef4444' }}
               >
+                <Trash2 size={15} aria-hidden="true" />
                 {deleting ? 'Deleting...' : 'Delete account'}
               </button>
             </div>

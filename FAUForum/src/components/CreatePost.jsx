@@ -1,37 +1,37 @@
 import { useRef, useState } from 'react';
+import { CheckCircle2, ImagePlus, Link2, Tag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { TAGS } from '../data/mockData';
+import { getAvatarOrDefault, handleAvatarError } from '../utils/avatar';
 
-const ImageIcon = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-    <circle cx="8.5" cy="8.5" r="1.5" />
-    <polyline points="21 15 16 10 5 21" />
-  </svg>
-);
+const AVAILABLE_TAGS = TAGS.filter(tag => tag.id !== 'all');
 
-const LinkIcon = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </svg>
-);
+function normalizeWebLink(value) {
+  const trimmedLink = value.trim();
 
-const TagIcon = () => (
-  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-    <line x1="7" y1="7" x2="7.01" y2="7" />
-  </svg>
-);
+  if (!trimmedLink) return '';
 
-const AVAILABLE_TAGS = TAGS.filter(t => t.id !== 'all');
+  const linkWithProtocol = /^https?:\/\//i.test(trimmedLink)
+    ? trimmedLink
+    : `https://${trimmedLink}`;
+  const parsedLink = new URL(linkWithProtocol);
 
-export default function CreatePost({ onPostCreated }) {
-  const { user, isLoggedIn } = useAuth();
-  const currentUserAvatar = user?.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=OwlNetUser&backgroundColor=b6e3f4`;
+  if (!['http:', 'https:'].includes(parsedLink.protocol)) {
+    throw new Error('Only HTTP and HTTPS links are supported.');
+  }
+
+  return parsedLink.toString();
+}
+
+export default function CreatePost({ onPostCreated, courseContext = null }) {
+  const { user } = useAuth();
+  const presetTags = (courseContext?.tags || []).slice(0, 1);
+  const courseTag = presetTags[0] || '';
+  const courseCode = courseContext?.code || '';
+  const currentUserAvatar = getAvatarOrDefault(user?.avatar);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState(presetTags);
   const [expanded, setExpanded] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
 
@@ -45,11 +45,27 @@ export default function CreatePost({ onPostCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  
+  const composerTitle = courseCode ? `Post about ${courseCode}` : 'Create a post';
+  const composerHelper = courseCode
+    ? `Automatically tagged #${courseTag}.`
+    : 'Share a question, update, or campus resource.';
+  const titlePlaceholder = courseCode
+    ? `What would you like to ask about ${courseCode}?`
+    : 'What would you like to discuss?';
+  const selectedTagLabel = selectedTags
+    .map(tag => `#${tag === courseTag && courseCode ? courseCode : tag}`)
+    .join(', ');
+  const publishButtonLabel = submitting
+    ? 'Publishing...'
+    : courseCode
+      ? 'Publish course post'
+      : 'Publish post';
 
   const toggleTag = (tagId) => {
-    setSelectedTags(prev =>
-      prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId].slice(0, 3)
+    setSelectedTags(previousTags =>
+      previousTags.includes(tagId)
+        ? previousTags.filter(selectedTag => selectedTag !== tagId)
+        : [...previousTags, tagId].slice(0, 3)
     );
   };
 
@@ -60,13 +76,12 @@ export default function CreatePost({ onPostCreated }) {
   const resetForm = () => {
     setTitle('');
     setBody('');
-    setSelectedTags([]);
+    setSelectedTags(presetTags);
     setImageUrl('');
     setLinkUrl('');
     setExpanded(false);
     setShowTagPicker(false);
     setShowLinkInput(false);
-
     setImageName('');
 
     if (imageInputRef.current) {
@@ -74,8 +89,8 @@ export default function CreatePost({ onPostCreated }) {
     }
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = (event) => {
+    const file = event.target.files?.[0];
 
     if (!file) return;
 
@@ -84,7 +99,7 @@ export default function CreatePost({ onPostCreated }) {
       return;
     }
     if (file.size > 1 * 1024 * 1024) {
-      setError('Image must be under 1MB for this demo.');
+      setError('Images must be 1 MB or smaller.');
       return;
     }
 
@@ -108,16 +123,26 @@ export default function CreatePost({ onPostCreated }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     if (!title.trim() || submitting) return;
 
-    setSubmitting(true);
     setError('');
 
+    let normalizedLinkUrl;
+
     try {
-      const res = await fetch('/api/posts', {
+      normalizedLinkUrl = normalizeWebLink(linkUrl);
+    } catch (linkError) {
+      setError(linkError.message || 'Enter a valid link.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const response = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,16 +151,16 @@ export default function CreatePost({ onPostCreated }) {
           username: user?.username || 'Anonymous',
           tags: selectedTags,
           image_url: imageUrl.trim(),
-          link_url: linkUrl.trim(),
+          link_url: normalizedLinkUrl,
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to create post');
+      if (!response.ok) {
+        const responseData = await response.json().catch(() => ({}));
+        throw new Error(responseData.error || 'Failed to create post');
       }
 
-      const newPost = await res.json();
+      const newPost = await response.json();
 
       if (onPostCreated) {
         onPostCreated(newPost);
@@ -147,8 +172,8 @@ export default function CreatePost({ onPostCreated }) {
         resetForm();
         setSubmitted(false);
       }, 2000);
-    } catch (err) {
-      setError(err.message);
+    } catch (requestError) {
+      setError(requestError.message);
     } finally {
       setSubmitting(false);
     }
@@ -160,38 +185,53 @@ export default function CreatePost({ onPostCreated }) {
   };
 
   return (
-    <div id="create-post-area" className="create-post-area p-4">
+    <div
+      id="create-post-area"
+      className={`create-post-area ${courseContext ? 'is-course-context' : ''}`}
+    >
       {submitted ? (
-        <div className="py-6 text-center animate-fade-in">
-          <div className="text-3xl mb-2">🎉</div>
+        <div className="composer-success animate-fade-in" role="status">
+          <CheckCircle2 size={24} aria-hidden="true" />
+          <div>
+            <p className="font-semibold">
+              Post published
+            </p>
 
-          <p className="font-semibold" style={{ color: 'var(--color-owl-gold)' }}>
-            Post submitted successfully!
-          </p>
-
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Your post is now live in the feed.
-          </p>
+            <p className="text-sm mt-0.5">
+              Your {courseCode ? `${courseCode} ` : ''}discussion is now live in the community
+              feed.
+            </p>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} id="create-post-form" noValidate>
-          <div className="flex gap-3 items-start">
+          <div className="composer-heading">
+            <div>
+              <p className="composer-eyebrow">
+                {courseCode ? 'Course discussion' : 'Start a discussion'}
+              </p>
+              <h2>{composerTitle}</h2>
+            </div>
+            <span>{composerHelper}</span>
+          </div>
+
+          <div className="composer-main">
             <img
               src={currentUserAvatar}
               alt="Your profile"
-              className="w-10 h-10 rounded-full avatar-ring shrink-0 mt-1"
+              className="w-10 h-10 rounded-full avatar-ring shrink-0"
+              onError={handleAvatarError}
             />
 
             <div className="flex-1 min-w-0">
               <input
                 id="post-title-input"
                 type="text"
-                placeholder="What's on your mind, FAU Owl? 🦉"
+                placeholder={titlePlaceholder}
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={event => setTitle(event.target.value)}
                 onFocus={handleFocus}
-                className="w-full text-sm font-medium py-2 border-b transition-colors"
-                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+                className="composer-title-input"
                 aria-label="Post title"
                 maxLength={200}
               />
@@ -201,41 +241,29 @@ export default function CreatePost({ onPostCreated }) {
                   <textarea
                     id="post-body-input"
                     rows={4}
-                    placeholder="Share more details… (optional)"
+                    placeholder="Add context or details (optional)"
                     value={body}
-                    onChange={e => setBody(e.target.value)}
-                    className="w-full text-sm mt-3 py-2 leading-relaxed"
-                    style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+                    onChange={event => setBody(event.target.value)}
+                    className="composer-body-input"
                     aria-label="Post body"
                   />
 
-                  <div className="mt-3">
+                  <div className="composer-tags">
                     <button
                       type="button"
                       id="tag-picker-btn"
-                      onClick={() => setShowTagPicker(p => !p)}
-                      className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
-                      style={{
-                        color: selectedTags.length > 0 ? '#7EB3FF' : 'var(--color-text-muted)',
-                        border: '1px solid var(--color-border)',
-                        background: 'var(--color-surface-3)',
-                      }}
+                      onClick={() => setShowTagPicker(previous => !previous)}
+                      className="composer-tag-trigger"
                       aria-expanded={showTagPicker}
                     >
-                      <TagIcon />
+                      <Tag size={15} aria-hidden="true" />
                       {selectedTags.length > 0
-                        ? `Tags: ${selectedTags.map(t => '#' + t).join(', ')}`
-                        : 'Add Tags (up to 3)'}
+                        ? `Topics: ${selectedTagLabel}`
+                        : 'Add topics (up to 3)'}
                     </button>
 
                     {showTagPicker && (
-                      <div
-                        className="mt-2 flex flex-wrap gap-2 p-3 rounded-xl animate-slide-down"
-                        style={{
-                          background: 'var(--color-surface-3)',
-                          border: '1px solid var(--color-border)',
-                        }}
-                      >
+                      <div className="composer-tag-picker animate-slide-down">
                         {AVAILABLE_TAGS.map(tag => (
                           <button
                             key={tag.id}
@@ -245,7 +273,7 @@ export default function CreatePost({ onPostCreated }) {
                             className={`tag-chip ${selectedTags.includes(tag.id) ? 'active' : ''}`}
                             aria-pressed={selectedTags.includes(tag.id)}
                           >
-                            {tag.icon} {tag.label}
+                            {tag.label}
                           </button>
                         ))}
                       </div>
@@ -253,13 +281,7 @@ export default function CreatePost({ onPostCreated }) {
                   </div>
 
                   {imageUrl && (
-                    <div
-                      className="mt-3 rounded-2xl overflow-hidden"
-                      style={{
-                        border: '1px solid var(--color-border)',
-                        background: 'var(--color-surface-3)',
-                      }}
-                    >
+                    <div className="composer-attachment-preview">
                       <img
                         src={imageUrl}
                         alt="Upload preview"
@@ -267,18 +289,14 @@ export default function CreatePost({ onPostCreated }) {
                       />
 
                       <div className="flex items-center justify-between gap-2 px-3 py-2">
-                        <p
-                          className="text-xs truncate"
-                          style={{ color: 'var(--color-text-muted)' }}
-                        >
+                        <p className="text-xs truncate">
                           {imageName || 'Uploaded image'}
                         </p>
 
                         <button
                           type="button"
                           onClick={removeImage}
-                          className="text-xs font-bold"
-                          style={{ color: '#F87171' }}
+                          className="composer-remove"
                         >
                           Remove
                         </button>
@@ -290,18 +308,14 @@ export default function CreatePost({ onPostCreated }) {
                     <input
                       type="url"
                       value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      placeholder="Paste link URL..."
-                      className="w-full text-sm mt-3 px-3 py-2 rounded-xl"
-                      style={{
-                        background: 'var(--color-surface-3)',
-                        border: '1px solid var(--color-border)',
-                        color: 'var(--color-text-primary)',
-                      }}
+                      onChange={event => setLinkUrl(event.target.value)}
+                      placeholder="Paste a link URL"
+                      className="composer-link-input"
+                      aria-label="Link URL"
                     />
                   )}
 
-                  <div className="flex items-center gap-2 mt-4">
+                  <div className="composer-actions">
                     <input
                       ref={imageInputRef}
                       type="file"
@@ -313,27 +327,23 @@ export default function CreatePost({ onPostCreated }) {
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
-                      style={{
-                        color: imageUrl ? 'var(--color-owl-blue)' : 'var(--color-text-muted)',
-                      }}
+                      className={`composer-tool ${imageUrl ? 'active' : ''}`}
                       title="Upload image"
                       aria-label="Upload image"
                     >
-                      <ImageIcon />
+                      <ImagePlus size={16} aria-hidden="true" />
+                      <span>Image</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setShowLinkInput(p => !p)}
-                      className="p-2 rounded-lg transition-all hover:bg-[color:var(--color-surface-3)]"
-                      style={{
-                        color: linkUrl.trim() ? 'var(--color-owl-blue)' : 'var(--color-text-muted)',
-                      }}
+                      onClick={() => setShowLinkInput(previous => !previous)}
+                      className={`composer-tool ${linkUrl.trim() ? 'active' : ''}`}
                       title="Add link"
                       aria-label="Add link"
                     >
-                      <LinkIcon />
+                      <Link2 size={16} aria-hidden="true" />
+                      <span>Link</span>
                     </button>
 
                     <div className="flex-1" />
@@ -342,11 +352,7 @@ export default function CreatePost({ onPostCreated }) {
                       type="button"
                       id="discard-post-btn"
                       onClick={handleDiscard}
-                      className="px-4 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                      style={{
-                        color: 'var(--color-text-muted)',
-                        border: '1px solid var(--color-border)',
-                      }}
+                      className="button-secondary"
                     >
                       Discard
                     </button>
@@ -355,18 +361,14 @@ export default function CreatePost({ onPostCreated }) {
                       type="submit"
                       id="submit-post-btn"
                       disabled={!title.trim() || submitting}
-                      className="px-5 py-1.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95"
-                      style={{
-                        background: 'linear-gradient(135deg, var(--color-owl-blue), var(--color-owl-blue-light))',
-                        color: 'white',
-                      }}
+                      className="button-primary"
                     >
-                      {submitting ? 'Posting…' : 'Post'}
+                      {publishButtonLabel}
                     </button>
                   </div>
 
                   {error && (
-                    <p className="text-xs mt-2" style={{ color: '#F87171' }}>
+                    <p className="form-error mt-3" role="alert">
                       {error}
                     </p>
                   )}

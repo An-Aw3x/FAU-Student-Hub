@@ -1,62 +1,66 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowUp,
+  BookOpen,
+  Building2,
+  Calendar,
+  CalendarDays,
+  ExternalLink,
+  Flame,
+  MessageSquare,
+  Tags,
+  Users,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getAvatarOrDefault, handleAvatarError } from '../utils/avatar';
+import {
+  getPostActivity,
+  getTrendingPosts,
+  getTrendingTags,
+} from '../utils/trending';
 
 const API_BASE = 'http://localhost:3001';
 
-const FireIcon = () => (
-  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 2C9.243 2 7 4.243 7 7c0 1.657.672 3.157 1.757 4.243C7.62 12.38 7 14.12 7 16c0 2.757 2.243 5 5 5s5-2.243 5-5c0-1.88-.62-3.62-1.757-4.757A4.978 4.978 0 0 0 17 7c0-2.757-2.243-5-5-5z" />
-  </svg>
-);
-
-const TRENDING_POSTS = [
-  { id: 1, title: 'Off-campus housing guide near Boca 🏠', votes: 284, tag: 'housing' },
-  { id: 3, title: 'FAU Career Fair confirmed companies 🎉', votes: 312, tag: 'events' },
-  { id: 4, title: 'Parking situation is BRUTAL this semester 😤', votes: 498, tag: 'rants' },
-  { id: 5, title: 'Best eats on/near campus under $10 🍕', votes: 203, tag: 'food' },
-  { id: 2, title: 'COP3530 with Prof. Tavana — worth it? 📚', votes: 156, tag: 'classes' },
+const CAMPUS_LINKS = [
+  { label: 'MyFAU', href: 'https://myfau.fau.edu/', icon: Building2 },
+  { label: 'Canvas', href: 'https://canvas.fau.edu/', icon: BookOpen },
+  {
+    label: 'Academic Calendar',
+    href: 'https://www.fau.edu/registrar/calendar/',
+    icon: CalendarDays,
+  },
+  { label: 'Campus Events', href: 'https://calendar.fau.edu/', icon: Calendar },
 ];
 
-const TAG_COLOR_MAP = {
-  housing: '#60A5FA',
-  events: '#34D399',
-  rants: '#F87171',
-  food: '#FBBF24',
-  classes: '#A78BFA',
-  campus: '#38BDF8',
-  jobs: '#4ADE80',
-  tech: '#818CF8',
-};
+async function fetchCommunityData(userEmail) {
+  const emailQuery = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
+  const [statsResponse, activeResponse] = await Promise.all([
+    fetch(`${API_BASE}/api/community/stats${emailQuery}`),
+    fetch(`${API_BASE}/api/community/active-users`),
+  ]);
 
-const FALLBACK_ACTIVE_USERS = [
-  {
-    id: 1,
-    name: 'Alex Rivera',
-    handle: '@alexr_fau',
-    avatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=b6e3f4',
-  },
-  {
-    id: 2,
-    name: 'Jordan Lee',
-    handle: '@jlee_owl',
-    avatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=Jordan&backgroundColor=b6e3f4',
-  },
-  {
-    id: 3,
-    name: 'Sam Patel',
-    handle: '@sampatel_cs',
-    avatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=Sam&backgroundColor=b6e3f4',
-  },
-  {
-    id: 4,
-    name: 'Maya Thompson',
-    handle: '@mayaT',
-    avatar: 'https://api.dicebear.com/9.x/avataaars/svg?seed=Maya&backgroundColor=b6e3f4',
-  },
-];
+  const stats = statsResponse.ok ? await statsResponse.json() : null;
+  const activeUsers = activeResponse.ok ? await activeResponse.json() : null;
 
-export default function RightSidebar({ onOpenCommunity }) {
+  return { stats, activeUsers };
+}
+
+function normalizeCommunityStats(stats) {
+  return {
+    memberCount: stats.memberCount || 0,
+    onlineCount: stats.onlineCount || 0,
+    postsToday: stats.postsToday || 0,
+  };
+}
+
+export default function RightSidebar({
+  onOpenCommunity,
+  posts = [],
+  onOpenPost,
+  onFilterTag,
+}) {
   const { user } = useAuth();
+  const userEmail = user?.email;
 
   const [communityStats, setCommunityStats] = useState({
     memberCount: 0,
@@ -65,41 +69,39 @@ export default function RightSidebar({ onOpenCommunity }) {
   });
 
   const [activeUsers, setActiveUsers] = useState([]);
-
-  const loadCommunityData = useCallback(async () => {
-    try {
-      const emailQuery = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
-
-      const [statsResponse, activeResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/community/stats${emailQuery}`),
-        fetch(`${API_BASE}/api/community/active-users`),
-      ]);
-
-      if (statsResponse.ok) {
-        const data = await statsResponse.json();
-
-        setCommunityStats({
-          memberCount: data.memberCount || 0,
-          onlineCount: data.onlineCount || 0,
-          postsToday: data.postsToday || 0,
-        });
-      }
-
-      if (activeResponse.ok) {
-        const users = await activeResponse.json();
-        setActiveUsers(users);
-      }
-    } catch (error) {
-      console.error('Could not load community data:', error);
-    }
-  }, [user?.email]);
+  const [communityDataAvailable, setCommunityDataAvailable] = useState(null);
 
   useEffect(() => {
-    loadCommunityData();
-  }, [loadCommunityData]);
+    let cancelled = false;
+
+    fetchCommunityData(userEmail)
+      .then(({ stats, activeUsers: currentActiveUsers }) => {
+        if (cancelled) return;
+
+        if (stats) {
+          setCommunityStats(normalizeCommunityStats(stats));
+        }
+
+        if (currentActiveUsers) {
+          setActiveUsers(currentActiveUsers);
+        }
+
+        setCommunityDataAvailable(Boolean(stats || currentActiveUsers));
+      })
+      .catch(error => {
+        console.error('Could not load community data:', error);
+        setCommunityDataAvailable(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userEmail]);
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (!userEmail) return;
+
+    let cancelled = false;
 
     const sendHeartbeat = async () => {
       try {
@@ -109,13 +111,29 @@ export default function RightSidebar({ onOpenCommunity }) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: user.email,
+            email: userEmail,
           }),
         });
 
-        loadCommunityData();
+        const { stats, activeUsers: currentActiveUsers } =
+          await fetchCommunityData(userEmail);
+
+        if (cancelled) return;
+
+        if (stats) {
+          setCommunityStats(normalizeCommunityStats(stats));
+        }
+
+        if (currentActiveUsers) {
+          setActiveUsers(currentActiveUsers);
+        }
+
+        setCommunityDataAvailable(Boolean(stats || currentActiveUsers));
       } catch (error) {
         console.error('Could not update online status:', error);
+        if (!cancelled) {
+          setCommunityDataAvailable(false);
+        }
       }
     };
 
@@ -123,64 +141,86 @@ export default function RightSidebar({ onOpenCommunity }) {
 
     const intervalId = setInterval(sendHeartbeat, 60000);
 
-    return () => clearInterval(intervalId);
-  }, [user?.email, loadCommunityData]);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [userEmail]);
 
-  const stats = [
-    { label: 'Members', value: communityStats.memberCount.toLocaleString() },
-    { label: 'Online', value: communityStats.onlineCount.toLocaleString() },
-    { label: 'Posts Today', value: communityStats.postsToday.toLocaleString() },
+  const communityStatItems = [
+    {
+      label: 'Members',
+      value: communityDataAvailable ? communityStats.memberCount.toLocaleString() : '—',
+    },
+    {
+      label: 'Online',
+      value: communityDataAvailable ? communityStats.onlineCount.toLocaleString() : '—',
+    },
+    {
+      label: 'Posts Today',
+      value: communityDataAvailable ? communityStats.postsToday.toLocaleString() : '—',
+    },
   ];
 
-  const usersToShow = activeUsers.length > 0 ? activeUsers : FALLBACK_ACTIVE_USERS;
+  const trendingPosts = useMemo(() => getTrendingPosts(posts, 5), [posts]);
+  const popularTags = useMemo(() => getTrendingTags(posts, 7), [posts]);
 
   return (
     <aside
       id="right-sidebar"
-      className="hidden xl:flex flex-col gap-4 w-72 shrink-0"
-      aria-label="Right sidebar"
+      className="right-sidebar hidden xl:flex flex-col gap-4 w-72 shrink-0"
+      aria-label="Student resources and community activity"
     >
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-        }}
+      <section
+        className="sidebar-panel sidebar-community-panel rounded-lg p-4"
+        aria-labelledby="owlnet-community-heading"
       >
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            🦉 OwlNet Community
+        <div className="sidebar-section-header flex items-center justify-between gap-3 mb-2">
+          <h2
+            id="owlnet-community-heading"
+            className="sidebar-section-heading font-display font-bold text-sm flex items-center gap-2"
+          >
+            <Users size={16} strokeWidth={2} aria-hidden="true" />
+            OwlNet Community
           </h2>
 
           <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{
-              background: 'rgba(74,222,128,0.1)',
-              color: '#4ADE80',
-              border: '1px solid rgba(74,222,128,0.2)',
-            }}
+            className={`sidebar-live-badge inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded ${
+              communityDataAvailable === false
+                ? 'is-unavailable'
+                : communityDataAvailable === null
+                  ? 'is-checking'
+                  : ''
+            }`}
           >
-            ● Live
+            <span
+              className="sidebar-live-dot w-1.5 h-1.5 rounded-full"
+              aria-hidden="true"
+            />
+            {communityDataAvailable === false
+              ? 'Unavailable'
+              : communityDataAvailable === null
+                ? 'Checking'
+                : 'Live'}
           </span>
         </div>
 
-        <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-          The unofficial FAU student community
+        <p className="sidebar-community-description text-xs leading-relaxed mb-4">
+          Connect with the Florida Atlantic student community.
         </p>
 
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {stats.map((s) => (
+        <div className="sidebar-stats-grid grid grid-cols-3 gap-2 mb-4">
+          {communityStatItems.map((stat) => (
             <div
-              key={s.label}
-              className="rounded-xl p-2 text-center"
-              style={{ background: 'var(--color-surface-3)' }}
+              key={stat.label}
+              className="sidebar-stat-item rounded-md px-1 py-2.5 text-center"
             >
-              <div className="font-bold text-base font-display" style={{ color: 'var(--color-text-primary)' }}>
-                {s.value}
+              <div className="sidebar-stat-value font-bold text-base font-display">
+                {stat.value}
               </div>
 
-              <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {s.label}
+              <div className="sidebar-stat-label text-[10px] leading-tight mt-0.5">
+                {stat.label}
               </div>
             </div>
           ))}
@@ -189,130 +229,207 @@ export default function RightSidebar({ onOpenCommunity }) {
         <button
           type="button"
           onClick={onOpenCommunity}
-          className="w-full py-3 rounded-xl font-bold transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{
-            background: 'var(--color-owl-blue)',
-            color: 'white',
-            border: '1px solid transparent',
-          }}
+          className="sidebar-community-cta w-full py-2.5 rounded-md text-sm font-bold transition-colors hover:opacity-90"
         >
-          Join Community
+          Explore Community
         </button>
-      </div>
+      </section>
 
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-        }}
+      <section
+        className="sidebar-panel sidebar-campus-panel rounded-lg p-4"
+        aria-labelledby="campus-links-heading"
       >
         <h2
-          className="font-display font-bold text-sm mb-3 flex items-center gap-2"
-          style={{ color: 'var(--color-text-primary)' }}
+          id="campus-links-heading"
+          className="sidebar-section-heading font-display font-bold text-sm mb-3 flex items-center gap-2"
         >
-          <FireIcon />
-          Trending Now
+          <Building2 size={16} strokeWidth={2} aria-hidden="true" />
+          Campus Links
         </h2>
 
-        <div className="flex flex-col gap-3">
-          {TRENDING_POSTS.map((post, idx) => (
-            <a
-              key={post.id}
-              href="#"
-              id={`trending-post-${post.id}`}
-              className="flex gap-3 items-start group"
-              style={{ textDecoration: 'none' }}
-            >
-              <span
-                className="font-bold text-sm w-5 shrink-0 mt-0.5"
-                style={{ color: idx === 0 ? 'var(--color-owl-gold)' : 'var(--color-text-muted)' }}
+        <nav className="sidebar-campus-links flex flex-col" aria-label="Official FAU campus links">
+          {CAMPUS_LINKS.map((link) => {
+            const LinkIcon = link.icon;
+
+            return (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="sidebar-campus-link flex items-center gap-2.5 py-2.5 border-t first:border-t-0 text-xs font-semibold transition-colors hover:text-[color:var(--color-owl-blue)]"
               >
-                {idx + 1}
-              </span>
+                <LinkIcon
+                  className="sidebar-campus-link-icon"
+                  size={15}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+                <span className="flex-1">{link.label}</span>
+                <ExternalLink
+                  className="sidebar-campus-external-icon"
+                  size={13}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </a>
+            );
+          })}
+        </nav>
+      </section>
 
-              <div className="min-w-0 flex-1">
-                <p
-                  className="text-xs font-medium leading-snug mb-1 group-hover:text-[color:var(--color-owl-gold-light)] transition-colors"
-                  style={{ color: 'var(--color-text-primary)' }}
+      <section
+        className="sidebar-panel sidebar-trending-panel rounded-lg p-4"
+        aria-labelledby="trending-topics-heading"
+      >
+        <h2
+          id="trending-topics-heading"
+          className="sidebar-section-heading font-display font-bold text-sm mb-3 flex items-center gap-2"
+        >
+          <Flame size={16} strokeWidth={2} aria-hidden="true" />
+          Trending Topics
+        </h2>
+
+        <div className="sidebar-trending-list flex flex-col">
+          {trendingPosts.length > 0 ? (
+            trendingPosts.map((post, index) => {
+              const activity = getPostActivity(post);
+              const primaryTag = (post.tags || [])[0];
+
+              return (
+                <button
+                  key={post.id}
+                  type="button"
+                  id={`trending-post-${post.id}`}
+                  onClick={() => onOpenPost?.(post.id)}
+                  className="sidebar-trending-item group"
+                  aria-label={`Open trending post: ${post.title}`}
                 >
-                  {post.title}
-                </p>
-
-                <div className="flex items-center gap-2">
                   <span
-                    className="tag-chip text-[10px]"
-                    style={{ color: TAG_COLOR_MAP[post.tag] || '#7EB3FF', padding: '1px 6px' }}
+                    className={`sidebar-trending-rank ${
+                      index === 0 ? 'is-top' : ''
+                    }`}
+                    aria-hidden="true"
                   >
-                    #{post.tag}
+                    {index + 1}
                   </span>
 
-                  <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                    ⬆️ {post.votes}
+                  <span className="sidebar-trending-content">
+                    <span className="sidebar-trending-title">{post.title}</span>
+
+                    <span className="sidebar-trending-meta">
+                      {primaryTag && (
+                        <span className="sidebar-topic-tag">#{primaryTag}</span>
+                      )}
+
+                      <span
+                        className="sidebar-topic-votes"
+                        aria-label={`${activity.votes} votes`}
+                      >
+                        <ArrowUp size={11} strokeWidth={2} aria-hidden="true" />
+                        {activity.votes}
+                      </span>
+
+                      <span
+                        className="sidebar-topic-comments"
+                        aria-label={`${activity.comments} comments`}
+                      >
+                        <MessageSquare size={11} strokeWidth={2} aria-hidden="true" />
+                        {activity.comments}
+                      </span>
+                    </span>
                   </span>
+                </button>
+              );
+            })
+          ) : (
+            <div className="sidebar-trending-empty" role="status">
+              <Flame size={18} strokeWidth={1.8} aria-hidden="true" />
+              <p>No trending posts yet.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section
+        className="sidebar-panel sidebar-active-panel rounded-lg p-4"
+        aria-labelledby="active-now-heading"
+      >
+        <h2
+          id="active-now-heading"
+          className="sidebar-section-heading font-display font-bold text-sm mb-3 flex items-center gap-2"
+        >
+          <Users size={16} strokeWidth={2} aria-hidden="true" />
+          Active Now
+        </h2>
+
+        <div className="sidebar-active-list flex flex-col gap-3">
+          {activeUsers.length > 0 ? (
+            activeUsers.map((activeUser) => (
+              <div key={activeUser.id} className="sidebar-active-user flex items-center gap-3">
+                <div className="sidebar-active-avatar relative">
+                  <img
+                    src={getAvatarOrDefault(activeUser.avatar)}
+                    alt={activeUser.name}
+                    className="w-8 h-8 rounded-full object-cover"
+                    onError={handleAvatarError}
+                  />
+
+                  <span
+                    className="sidebar-online-indicator absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2"
+                    aria-label="Online"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="sidebar-active-name text-xs font-semibold truncate">
+                    {activeUser.name}
+                  </p>
+                  <p className="sidebar-active-handle text-xs truncate">{activeUser.handle}</p>
                 </div>
               </div>
-            </a>
-          ))}
+            ))
+          ) : (
+            <p className="sidebar-active-empty">
+              {communityDataAvailable === false
+                ? 'Community activity is temporarily unavailable.'
+                : 'No students are currently active.'}
+            </p>
+          )}
         </div>
-      </div>
+      </section>
 
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-        }}
+      <section
+        className="sidebar-panel sidebar-tags-panel rounded-lg p-4"
+        aria-labelledby="popular-tags-heading"
       >
-        <h2 className="font-display font-bold text-sm mb-3" style={{ color: 'var(--color-text-primary)' }}>
-          👥 Active Now
+        <h2
+          id="popular-tags-heading"
+          className="sidebar-section-heading font-display font-bold text-sm mb-3 flex items-center gap-2"
+        >
+          <Tags size={16} strokeWidth={2} aria-hidden="true" />
+          Popular Tags
         </h2>
 
-        <div className="flex flex-col gap-3">
-          {usersToShow.map((u) => (
-            <div key={u.id} className="flex items-center gap-3">
-              <div className="relative">
-                <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full avatar-ring" />
-
-                <span
-                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2"
-                  style={{ background: '#4ADE80', borderColor: 'var(--color-surface-2)' }}
-                />
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
-                  {u.name}
-                </p>
-
-                <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
-                  {u.handle}
-                </p>
-              </div>
-            </div>
-          ))}
+        <div className="sidebar-tag-list flex flex-wrap gap-2">
+          {popularTags.length > 0 ? (
+            popularTags.map((tagItem) => (
+              <button
+                key={tagItem.tag}
+                type="button"
+                onClick={() => onFilterTag?.(tagItem.tag)}
+                className="sidebar-tag"
+                aria-label={`Filter feed by ${tagItem.tag}`}
+              >
+                <span>#{tagItem.tag}</span>
+                <span className="sidebar-tag-count">{tagItem.count}</span>
+              </button>
+            ))
+          ) : (
+            <p className="sidebar-tags-empty">Tags will appear as students post.</p>
+          )}
         </div>
-      </div>
-
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        <h2 className="font-display font-bold text-sm mb-3" style={{ color: 'var(--color-text-primary)' }}>
-          🏷️ Popular Tags
-        </h2>
-
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(TAG_COLOR_MAP).map(([tag, color]) => (
-            <span key={tag} className="tag-chip" style={{ color }}>
-              #{tag}
-            </span>
-          ))}
-        </div>
-      </div>
+      </section>
     </aside>
   );
 }

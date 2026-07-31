@@ -1,33 +1,45 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
+import { getAvatarOrDefault } from '../utils/avatar';
 
 const AuthContext = createContext(null);
 
-const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@fau\.edu$/i;
-const generateDefaultAvatar = (seed) =>
-  `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4`;
+const FAU_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@fau\.edu$/i;
+
+function readSavedSession() {
+  try {
+    const savedSession = localStorage.getItem('owlnet_session');
+    const user = savedSession ? JSON.parse(savedSession) : null;
+
+    return user
+      ? {
+          ...user,
+          avatar: getAvatarOrDefault(user.avatar),
+        }
+      : null;
+  } catch {
+    try {
+      localStorage.removeItem('owlnet_session');
+    } catch {
+      // The app can still run when browser storage is unavailable.
+    }
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
+  const [user, setUser] = useState(readSavedSession);
+  const isLoggedIn = Boolean(user);
+  const loading = false;
+
+  const persistSession = useCallback((userData) => {
     try {
-      const saved = localStorage.getItem('owlnet_session');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setUser(parsed);
-        setIsLoggedIn(true);
+      if (userData) {
+        localStorage.setItem('owlnet_session', JSON.stringify(userData));
+      } else {
+        localStorage.removeItem('owlnet_session');
       }
     } catch {
-      localStorage.removeItem('owlnet_session');
-    }
-    setLoading(false);
-  }, []);
-  const persistSession = useCallback((userData) => {
-    if (userData) {
-      localStorage.setItem('owlnet_session', JSON.stringify(userData));
-    } else {
-      localStorage.removeItem('owlnet_session');
+      // Keep the in-memory session usable when storage is blocked.
     }
   }, []);
   const register = useCallback(async (username, email, password, testEmail = '') => {
@@ -47,7 +59,7 @@ export function AuthProvider({ children }) {
         username: username.trim(),
         email: email.trim().toLowerCase(),
         password,
-        testEmail,
+        testEmail: testEmail.trim().toLowerCase(),
       }),
     });
 
@@ -60,13 +72,15 @@ export function AuthProvider({ children }) {
       id: data.id,
       username: data.username,
       email: data.email,
-      avatar: data.avatar || generateDefaultAvatar(data.username),
+      avatar: getAvatarOrDefault(data.avatar),
       bio: data.bio || '',
+      banner_color: data.banner_color || '',
+      banner_image: data.banner_image || '',
       joinDate: data.created_at || new Date().toISOString(),
     };
 
     return userData;
-  }, [persistSession]);
+  }, []);
   const login = useCallback(async (email, password) => {
     if (!email || !password) {
       throw new Error('Email and password are required.');
@@ -91,20 +105,22 @@ export function AuthProvider({ children }) {
       id: data.id,
       username: data.username,
       email: data.email,
-      avatar: data.avatar || generateDefaultAvatar(data.username),
+      avatar: getAvatarOrDefault(data.avatar),
       bio: data.bio || '',
+      banner_color: data.banner_color || '',
+      banner_image: data.banner_image || '',
       joinDate: data.created_at || new Date().toISOString(),
+      is_admin: data.is_admin,
+      isAdmin: data.isAdmin || data.is_admin === 1,
     };
 
     setUser(userData);
-    setIsLoggedIn(true);
     persistSession(userData);
 
     return userData;
   }, [persistSession]);
   const logout = useCallback(() => {
     setUser(null);
-    setIsLoggedIn(false);
     persistSession(null);
   }, [persistSession]);
   const deleteAccount = useCallback(async () => {
@@ -123,7 +139,6 @@ export function AuthProvider({ children }) {
     }
 
     setUser(null);
-    setIsLoggedIn(false);
     persistSession(null);
 
     return true;
@@ -147,7 +162,11 @@ export function AuthProvider({ children }) {
       ...user,
       username: data.username || user.username,
       bio: data.bio ?? user.bio,
-      avatar: data.avatar || user.avatar,
+      avatar: getAvatarOrDefault(data.avatar || user.avatar),
+      banner_color: data.banner_color ?? user.banner_color ?? '',
+      banner_image: data.banner_image ?? user.banner_image ?? '',
+      is_admin: data.is_admin ?? user.is_admin,
+      isAdmin: data.isAdmin ?? user.isAdmin,
     };
 
     setUser(updatedUser);
@@ -173,6 +192,8 @@ export function AuthProvider({ children }) {
   );
 }
 
+// This hook intentionally lives beside its provider for a small student project.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

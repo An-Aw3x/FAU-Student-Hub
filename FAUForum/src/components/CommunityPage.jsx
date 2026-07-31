@@ -1,231 +1,237 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Home,
+  Landmark,
+  Laptop,
+  MessageSquare,
+  Utensils,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:3001';
 
-const COMMUNITY_CHATS = [
+async function fetchCommunityStats(userEmail) {
+  const emailQuery = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
+  const response = await fetch(`${API_BASE}/api/community/stats${emailQuery}`);
+
+  if (!response.ok) {
+    throw new Error('Could not load community stats.');
+  }
+
+  return response.json();
+}
+
+function normalizeCommunityStats(stats) {
+  return {
+    memberCount: stats.memberCount || 0,
+    onlineCount: stats.onlineCount || 0,
+    postsToday: stats.postsToday || 0,
+  };
+}
+
+const COMMUNITY_TOPICS = [
   {
     id: 'housing',
     title: 'Housing',
     description: 'Talk about apartments, roommates, rent, and off-campus housing.',
-    members: '1.2k',
   },
   {
     id: 'classes',
     title: 'Classes',
     description: 'Ask about professors, assignments, exams, and class advice.',
-    members: '980',
   },
   {
     id: 'campus',
     title: 'Campus Life',
     description: 'Campus events, student life, clubs, and general FAU talk.',
-    members: '740',
   },
   {
     id: 'food',
     title: 'Food & Dining',
     description: 'Best food spots near campus, meal ideas, and cheap eats.',
-    members: '610',
   },
   {
     id: 'tech',
     title: 'Tech & CS',
     description: 'Coding, CS classes, projects, internships, and tech help.',
-    members: '530',
   },
   {
     id: 'rants',
     title: 'Rants',
     description: 'Vent about parking, classes, campus problems, or random stuff.',
-    members: '890',
   },
 ];
 
-export default function CommunityPage({ onBack, onOpenChat }) {
-  const { user } = useAuth();
+const TOPIC_ICONS = {
+  housing: Home,
+  classes: BookOpen,
+  campus: Landmark,
+  food: Utensils,
+  tech: Laptop,
+  rants: MessageSquare,
+};
 
-  const [joined, setJoined] = useState(false);
-  const [joining, setJoining] = useState(false);
+export default function CommunityPage({ posts = [], onBack, onOpenTopic }) {
+  const { user } = useAuth();
+  const userEmail = user?.email;
+
   const [stats, setStats] = useState({
     memberCount: 0,
     onlineCount: 0,
     postsToday: 0,
   });
-
-  const loadCommunityStats = useCallback(async () => {
-    try {
-      const emailQuery = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
-      const response = await fetch(`${API_BASE}/api/community/stats${emailQuery}`);
-
-      if (!response.ok) {
-        throw new Error('Could not load community stats.');
-      }
-
-      const data = await response.json();
-
-      setStats({
-        memberCount: data.memberCount || 0,
-        onlineCount: data.onlineCount || 0,
-        postsToday: data.postsToday || 0,
-      });
-
-      setJoined(Boolean(data.joined));
-    } catch (error) {
-      console.error(error);
-    }
-  }, [user?.email]);
+  const [statsAvailable, setStatsAvailable] = useState(null);
 
   useEffect(() => {
-    loadCommunityStats();
-  }, [loadCommunityStats]);
+    let cancelled = false;
 
-  const handleJoinCommunity = async () => {
-    if (!user?.email) return;
-
-    try {
-      setJoining(true);
-
-      const response = await fetch(`${API_BASE}/api/community/join`, {
-        method: joined ? 'DELETE' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: user.email,
-          username: user.username,
-        }),
+    fetchCommunityStats(userEmail)
+      .then(data => {
+        if (!cancelled) {
+          setStats(normalizeCommunityStats(data));
+          setStatsAvailable(true);
+        }
+      })
+      .catch(error => {
+        console.error(error);
+        if (!cancelled) {
+          setStatsAvailable(false);
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Could not update community membership.');
+    return () => {
+      cancelled = true;
+    };
+  }, [userEmail]);
+
+  useEffect(() => {
+    if (!userEmail) return;
+
+    let cancelled = false;
+
+    const sendHeartbeat = async () => {
+      try {
+        await fetch(`${API_BASE}/api/users/heartbeat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: userEmail,
+          }),
+        });
+
+        const data = await fetchCommunityStats(userEmail);
+
+        if (!cancelled) {
+          setStats(normalizeCommunityStats(data));
+          setStatsAvailable(true);
+        }
+      } catch (error) {
+        console.error('Could not update online status:', error);
+        if (!cancelled) {
+          setStatsAvailable(false);
+        }
       }
+    };
 
-      const data = await response.json();
+    sendHeartbeat();
 
-      setStats({
-        memberCount: data.memberCount || 0,
-        onlineCount: data.onlineCount || 0,
-        postsToday: data.postsToday || 0,
-      });
+    const intervalId = setInterval(sendHeartbeat, 60000);
 
-      setJoined(Boolean(data.joined));
-    } catch (error) {
-      console.error(error);
-      alert('Could not update community membership.');
-    } finally {
-      setJoining(false);
-    }
-  };
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [userEmail]);
+
+  const communityStatItems = [
+    { label: 'Members', value: statsAvailable ? stats.memberCount.toLocaleString() : '—' },
+    { label: 'Online now', value: statsAvailable ? stats.onlineCount.toLocaleString() : '—' },
+    { label: 'Posts today', value: statsAvailable ? stats.postsToday.toLocaleString() : '—' },
+  ];
 
   return (
-    <section className="max-w-4xl mx-auto animate-fade-in">
-      <button type="button" onClick={onBack} className="vote-btn mb-5">
-        Back to Feed
+    <section className="community-page max-w-5xl mx-auto animate-fade-in">
+      <button type="button" onClick={onBack} className="page-back-button">
+        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+        Back to feed
       </button>
 
-      <div
-        className="rounded-3xl p-6 mb-6"
-        style={{
-          background: 'var(--color-surface-2)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        <div className="flex items-start justify-between gap-4 mb-2">
-          <div>
-            <h1
-              className="font-display font-bold text-3xl mb-2"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              OwlNet Community
-            </h1>
-
-            <p className="text-sm max-w-2xl" style={{ color: 'var(--color-text-muted)' }}>
-              Join FAU student chats based on topics like housing, classes, campus life, food, tech, and more.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleJoinCommunity}
-            disabled={joining}
-            className="vote-btn"
-          >
-            {joining ? 'Updating...' : joined ? 'Joined' : 'Join Community'}
-          </button>
+      <header className="community-hero">
+        <div className="community-hero-copy">
+          <p className="community-hero-eyebrow">Florida Atlantic Student Hub</p>
+          <h1 className="community-hero-title">OwlNet Community</h1>
+          <p className="community-hero-description">
+            Find student-led discussions about housing, academics, campus life, dining, technology,
+            and everyday life at Florida Atlantic.
+          </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-6">
-          <div className="rounded-2xl p-4 text-center" style={{ background: 'var(--color-surface-3)' }}>
-            <p className="font-display font-bold text-xl" style={{ color: 'var(--color-text-primary)' }}>
-              {stats.memberCount.toLocaleString()}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Members</p>
-          </div>
-
-          <div className="rounded-2xl p-4 text-center" style={{ background: 'var(--color-surface-3)' }}>
-            <p className="font-display font-bold text-xl" style={{ color: 'var(--color-text-primary)' }}>
-              {stats.onlineCount.toLocaleString()}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Online</p>
-          </div>
-
-          <div className="rounded-2xl p-4 text-center" style={{ background: 'var(--color-surface-3)' }}>
-            <p className="font-display font-bold text-xl" style={{ color: 'var(--color-text-primary)' }}>
-              {stats.postsToday.toLocaleString()}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Posts Today</p>
-          </div>
+        <div className="community-hero-stats">
+          {communityStatItems.map((stat) => (
+            <div key={stat.label} className="community-hero-stat">
+              <p>{stat.value}</p>
+              <span>{stat.label}</span>
+            </div>
+          ))}
         </div>
+      </header>
+
+      {statsAvailable === false && (
+        <p className="community-stats-note" role="status">
+          Live community counts are temporarily unavailable. Discussions remain available.
+        </p>
+      )}
+
+      <div className="community-section-intro">
+        <div>
+          <p className="section-eyebrow">Student discussions</p>
+          <h2>Find your community</h2>
+        </div>
+        <p>Choose a topic to browse recent posts and join the conversation.</p>
       </div>
 
-      <h2
-        className="font-display font-bold text-xl mb-4"
-        style={{ color: 'var(--color-text-primary)' }}
-      >
-        Community Chats
-      </h2>
+      <div className="community-topic-grid">
+        {COMMUNITY_TOPICS.map((topic) => {
+          const TopicIcon = TOPIC_ICONS[topic.id] || MessageSquare;
+          const postCount = posts.filter(post =>
+            (post.tags || []).some(tag => String(tag).toLowerCase() === topic.id)
+          ).length;
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {COMMUNITY_CHATS.map((chat) => (
-          <button
-            key={chat.id}
-            type="button"
-            onClick={() => onOpenChat(chat.id)}
-            className="text-left rounded-3xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
-            style={{
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h3
-                className="font-display font-bold text-lg"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
-                #{chat.title}
-              </h3>
-
-              <span
-                className="text-xs font-semibold px-2 py-1 rounded-full"
-                style={{
-                  background: 'var(--color-surface-3)',
-                  color: 'var(--color-text-muted)',
-                }}
-              >
-                {chat.members} members
+          return (
+            <button
+              key={topic.id}
+              type="button"
+              onClick={() => onOpenTopic(topic.id)}
+              className="community-topic-card"
+            >
+              <span className="community-topic-icon">
+                <TopicIcon size={19} strokeWidth={2} aria-hidden="true" />
               </span>
-            </div>
 
-            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-              {chat.description}
-            </p>
+              <span className="community-topic-content">
+                <span className="community-topic-header">
+                  <span className="community-topic-title">{topic.title}</span>
+                  <span className="community-topic-activity">
+                    <MessageSquare size={13} strokeWidth={2} aria-hidden="true" />
+                    {postCount} {postCount === 1 ? 'post' : 'posts'}
+                  </span>
+                </span>
 
-            <span className="vote-btn">
-              Open Chat
-            </span>
-          </button>
-        ))}
+                <span className="community-topic-description">{topic.description}</span>
+
+                <span className="community-topic-action">
+                  Open discussion
+                  <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </section>
   );

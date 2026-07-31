@@ -8,7 +8,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -31,6 +31,13 @@ const getAsync = (sql, params = []) => {
   });
 };
 
+const getForumUsername = (value) => {
+  if (typeof value !== "string") return "Anonymous";
+
+  const username = value.trim();
+  return username || "Anonymous";
+};
+
 const allAsync = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
@@ -47,6 +54,156 @@ const runAsync = (sql, params = []) => {
       else resolve(this);
     });
   });
+};
+
+const SAVED_POSTS_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS saved_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    username TEXT NOT NULL DEFAULT 'Anonymous',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, username),
+    FOREIGN KEY (post_id) REFERENCES posts(id)
+  )
+`;
+
+const USER_FOLLOWS_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS user_follows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    follower_username TEXT NOT NULL,
+    following_username TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(follower_username, following_username)
+  )
+`;
+
+const getSavedPostUsername = (value) => {
+  if (typeof value !== "string") return "Anonymous";
+
+  const username = value.trim();
+  return username || "Anonymous";
+};
+
+const initializeSavedPostsTable = async () => {
+  await runAsync(SAVED_POSTS_SCHEMA);
+
+  const table = await getAsync(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'saved_posts'"
+  );
+  const hasUserScopedConstraint = /UNIQUE\s*\(\s*post_id\s*,\s*username\s*\)/i.test(
+    table?.sql || ""
+  );
+
+  if (hasUserScopedConstraint) return;
+
+  // SQLite requires rebuilding the table to replace the legacy UNIQUE(post_id) constraint.
+  await runAsync("BEGIN IMMEDIATE TRANSACTION");
+
+  try {
+    await runAsync("DROP TABLE IF EXISTS saved_posts_migration");
+    await runAsync(`
+      CREATE TABLE saved_posts_migration (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL,
+        username TEXT NOT NULL DEFAULT 'Anonymous',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, username),
+        FOREIGN KEY (post_id) REFERENCES posts(id)
+      )
+    `);
+    await runAsync(`
+      INSERT OR IGNORE INTO saved_posts_migration (id, post_id, username, created_at)
+      SELECT
+        id,
+        post_id,
+        COALESCE(NULLIF(TRIM(username), ''), 'Anonymous'),
+        created_at
+      FROM saved_posts
+      ORDER BY id
+    `);
+    await runAsync("DROP TABLE saved_posts");
+    await runAsync("ALTER TABLE saved_posts_migration RENAME TO saved_posts");
+    await runAsync("COMMIT");
+  } catch (error) {
+    try {
+      await runAsync("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Could not roll back saved posts migration:", rollbackError.message);
+    }
+
+    throw error;
+  }
+};
+
+const normalizeProfilePosts = (rows) => {
+  return rows.map((row) => ({
+    ...row,
+    body: row.content,
+    commentCount: row.comment_count || 0,
+    isPinned: Boolean(row.is_pinned),
+    voteState: row.vote_state || "none",
+    vote_state: row.vote_state || "none",
+    tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+  }));
+};
+
+const getProfileUsername = (value) => {
+  if (typeof value !== "string") return "";
+  return value.trim();
+};
+
+const getUserByUsername = (username) => {
+  return getAsync(
+    `SELECT
+       id,
+       username,
+       avatar,
+       bio,
+       banner_color,
+       banner_image,
+       created_at
+     FROM users
+     WHERE username = ? COLLATE NOCASE`,
+    [username]
+  );
+};
+
+const getFollowCounts = async (username) => {
+  const [followerRow, followingRow] = await Promise.all([
+    getAsync(
+      "SELECT COUNT(*) AS count FROM user_follows WHERE following_username = ? COLLATE NOCASE",
+      [username]
+    ),
+    getAsync(
+      "SELECT COUNT(*) AS count FROM user_follows WHERE follower_username = ? COLLATE NOCASE",
+      [username]
+    ),
+  ]);
+
+  return {
+    followerCount: followerRow?.count || 0,
+    followingCount: followingRow?.count || 0,
+  };
+};
+
+const isOwnProfileRequest = (req) => {
+  const profileUsername = getProfileUsername(req.params.username);
+  const viewerUsername = getProfileUsername(req.query.viewer);
+
+  return (
+    profileUsername &&
+    viewerUsername &&
+    profileUsername.toLowerCase() === viewerUsername.toLowerCase()
+  );
+};
+
+const requireOwnProfile = (req, res) => {
+  if (isOwnProfileRequest(req)) return true;
+
+  res.status(403).json({
+    error: "This activity is private and can only be viewed on your own profile.",
+  });
+  return false;
 };
 
 const allowedReportReasons = [
@@ -255,10 +412,27 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       password TEXT NOT NULL,
       avatar TEXT DEFAULT '',
       bio TEXT DEFAULT '',
+      banner_color TEXT DEFAULT '',
+      banner_image TEXT DEFAULT '',
       email_verified INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  db.run(`ALTER TABLE users ADD COLUMN banner_color TEXT DEFAULT ''`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Could not add banner_color column:", err.message);
+    }
+  });
+  db.run(`ALTER TABLE users ADD COLUMN banner_image TEXT DEFAULT ''`, (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Could not add banner_image column:", err.message);
+    }
+  });
+  db.run("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0", (err) => {
+    if (err && !err.message.includes("duplicate column")) {
+      console.error("Could not add is_admin column:", err.message);
+    }
+  });
   db.run(`
     CREATE TABLE IF NOT EXISTS community_members (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -301,20 +475,15 @@ db.run(`ALTER TABLE posts ADD COLUMN link_url TEXT DEFAULT ''`, (err) => {
       password TEXT NOT NULL,
       avatar TEXT DEFAULT '',
       bio TEXT DEFAULT '',
+      banner_color TEXT DEFAULT '',
+      banner_image TEXT DEFAULT '',
       email_verified INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 });
-db.run(`
-  CREATE TABLE IF NOT EXISTS saved_posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    post_id INTEGER NOT NULL UNIQUE,
-    username TEXT DEFAULT 'Anonymous',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (post_id) REFERENCES posts(id)
-  )
-`);
+const savedPostsReady = initializeSavedPostsTable();
+const userFollowsReady = runAsync(USER_FOLLOWS_SCHEMA);
 db.run(`
   CREATE TABLE IF NOT EXISTS post_votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -350,18 +519,31 @@ app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is working" });
 });
 app.get("/api/posts", (req, res) => {
+  const username = getForumUsername
+    ? getForumUsername(req.query.username)
+    : (req.query.username || "Anonymous").trim();
+
   db.all(
     `
     SELECT 
       posts.*,
-      COUNT(comments.id) AS comment_count
+      COUNT(comments.id) AS comment_count,
+      COALESCE(current_vote.vote_type, 'none') AS vote_state,
+      author.username AS author_username,
+      author.avatar AS author_avatar,
+      author.bio AS author_bio
     FROM posts
     LEFT JOIN comments
       ON comments.post_id = posts.id
+    LEFT JOIN post_votes AS current_vote
+      ON current_vote.post_id = posts.id
+      AND LOWER(TRIM(current_vote.username)) = LOWER(TRIM(?))
+    LEFT JOIN users AS author
+      ON LOWER(TRIM(author.username)) = LOWER(TRIM(posts.username))
     GROUP BY posts.id
     ORDER BY posts.is_pinned DESC, posts.created_at DESC
     `,
-    [],
+    [username],
     (err, rows) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -372,6 +554,15 @@ app.get("/api/posts", (req, res) => {
         body: row.content,
         commentCount: row.comment_count || 0,
         isPinned: Boolean(row.is_pinned),
+        voteState: row.vote_state || "none",
+        vote_state: row.vote_state || "none",
+        author_avatar: row.author_avatar || "",
+        author_bio: row.author_bio || "",
+        user: {
+          name: row.author_username || row.username || "Anonymous",
+          avatar: row.author_avatar || "",
+          bio: row.author_bio || "",
+        },
         tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
       }));
 
@@ -456,7 +647,7 @@ app.put("/api/posts/:id", (req, res) => {
 app.patch("/api/posts/:id/vote", (req, res) => {
   const { id } = req.params;
   const { voteType } = req.body;
-  const username = req.body.username || "Jamie Owls";
+  const username = getForumUsername(req.body.username);
 
   if (voteType !== "up" && voteType !== "down") {
     return res.status(400).json({ error: "voteType must be 'up' or 'down'." });
@@ -517,7 +708,9 @@ app.patch("/api/posts/:id/vote", (req, res) => {
           }
 
           db.run(
-            "UPDATE post_votes SET vote_type = ? WHERE post_id = ? AND username = ?",
+            `UPDATE post_votes
+             SET vote_type = ?, created_at = CURRENT_TIMESTAMP
+             WHERE post_id = ? AND username = ?`,
             [voteType, id, username],
             (err) => {
               if (err) {
@@ -974,18 +1167,23 @@ app.get("/api/reports", (req, res) => {
 });
 app.get("/api/posts/:id/saved", (req, res) => {
   const { id } = req.params;
+  const username = getSavedPostUsername(req.query.username);
 
-  db.get("SELECT * FROM saved_posts WHERE post_id = ?", [id], (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  db.get(
+    "SELECT id FROM saved_posts WHERE post_id = ? AND username = ?",
+    [id, username],
+    (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.json({ saved: Boolean(row) });
     }
-
-    res.json({ saved: !!row });
-  });
+  );
 });
 app.post("/api/posts/:id/save", (req, res) => {
   const { id } = req.params;
-  const username = req.body.username || "Anonymous";
+  const username = getSavedPostUsername(req.body?.username);
 
   db.get("SELECT * FROM posts WHERE id = ?", [id], (err, post) => {
     if (err) {
@@ -1015,58 +1213,69 @@ app.post("/api/posts/:id/save", (req, res) => {
 });
 app.delete("/api/posts/:id/save", (req, res) => {
   const { id } = req.params;
+  const username = getSavedPostUsername(req.body?.username || req.query.username);
 
-  db.run("DELETE FROM saved_posts WHERE post_id = ?", [id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  db.run(
+    "DELETE FROM saved_posts WHERE post_id = ? AND username = ?",
+    [id, username],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.json({
+        message: "Post unsaved.",
+        saved: false,
+        post_id: Number(id),
+      });
     }
-
-    res.json({
-      message: "Post unsaved.",
-      saved: false,
-      post_id: Number(id),
-    });
-  });
+  );
 });
 app.get("/api/saved-posts", (req, res) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 25);
   const offset = (page - 1) * limit;
+  const username = getSavedPostUsername(req.query.username);
 
-  db.get("SELECT COUNT(*) AS total FROM saved_posts", [], (err, countRow) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-
-    db.all(
-      `
-      SELECT posts.*
-      FROM saved_posts
-      JOIN posts ON saved_posts.post_id = posts.id
-      ORDER BY saved_posts.created_at DESC
-      LIMIT ? OFFSET ?
-      `,
-      [limit, offset],
-      (err, rows) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
-
-        const savedPosts = rows.map((row) => ({
-          ...row,
-          tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
-        }));
-
-        res.json({
-          posts: savedPosts,
-          page,
-          limit,
-          total: countRow.total || 0,
-          totalPages: Math.ceil((countRow.total || 0) / limit),
-        });
+  db.get(
+    "SELECT COUNT(*) AS total FROM saved_posts WHERE username = ?",
+    [username],
+    (err, countRow) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
       }
-    );
-  });
+
+      db.all(
+        `
+        SELECT posts.*
+        FROM saved_posts
+        JOIN posts ON saved_posts.post_id = posts.id
+        WHERE saved_posts.username = ?
+        ORDER BY saved_posts.created_at DESC
+        LIMIT ? OFFSET ?
+        `,
+        [username, limit, offset],
+        (err, rows) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+
+          const savedPosts = rows.map((row) => ({
+            ...row,
+            tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+          }));
+
+          res.json({
+            posts: savedPosts,
+            page,
+            limit,
+            total: countRow.total || 0,
+            totalPages: Math.ceil((countRow.total || 0) / limit),
+          });
+        }
+      );
+    }
+  );
 });
 app.patch("/api/posts/:id/pin", (req, res) => {
   const { id } = req.params;
@@ -1228,7 +1437,11 @@ app.post("/api/auth/login", (req, res) => {
     }
 
     const { password: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+
+    res.json({
+      ...userWithoutPassword,
+      isAdmin: user.is_admin === 1,
+    });
   });
 });
 app.post("/api/auth/forgot-password", (req, res) => {
@@ -1571,6 +1784,527 @@ app.get("/api/auth/verify-email/:token", (req, res) => {
   );
 });
 
+app.get("/api/search/posts", async (req, res) => {
+  try {
+    const query = getProfileUsername(req.query.q);
+    const viewer = getForumUsername(req.query.viewer);
+
+    if (!query) return res.json([]);
+
+    const searchTerm = `%${query}%`;
+    const rows = await allAsync(
+      `
+      SELECT
+        posts.*,
+        COUNT(comments.id) AS comment_count,
+        COALESCE(current_vote.vote_type, 'none') AS vote_state
+      FROM posts
+      LEFT JOIN comments
+        ON comments.post_id = posts.id
+      LEFT JOIN post_votes AS current_vote
+        ON current_vote.post_id = posts.id
+        AND current_vote.username = ? COLLATE NOCASE
+      WHERE posts.title LIKE ? COLLATE NOCASE
+         OR posts.content LIKE ? COLLATE NOCASE
+         OR posts.tags LIKE ? COLLATE NOCASE
+         OR posts.username LIKE ? COLLATE NOCASE
+      GROUP BY posts.id
+      ORDER BY posts.created_at DESC
+      LIMIT 100
+      `,
+      [viewer, searchTerm, searchTerm, searchTerm, searchTerm]
+    );
+
+    res.json(normalizeProfilePosts(rows));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/search/comments", async (req, res) => {
+  try {
+    const query = getProfileUsername(req.query.q);
+
+    if (!query) return res.json([]);
+
+    const searchTerm = `%${query}%`;
+    const comments = await allAsync(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.username,
+        comments.content,
+        comments.likes,
+        comments.created_at,
+        posts.title AS post_title,
+        posts.username AS post_username
+      FROM comments
+      JOIN posts
+        ON posts.id = comments.post_id
+      WHERE comments.content LIKE ? COLLATE NOCASE
+         OR comments.username LIKE ? COLLATE NOCASE
+         OR posts.title LIKE ? COLLATE NOCASE
+      ORDER BY comments.created_at DESC
+      LIMIT 100
+      `,
+      [searchTerm, searchTerm, searchTerm]
+    );
+
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/search/users", async (req, res) => {
+  try {
+    const query = getProfileUsername(req.query.q);
+
+    if (!query) return res.json([]);
+
+    const searchTerm = `%${query}%`;
+    const users = await allAsync(
+      `
+      SELECT
+        users.id,
+        users.username,
+        users.avatar,
+        users.bio,
+        users.created_at,
+        COUNT(DISTINCT followers.id) AS follower_count,
+        COUNT(DISTINCT following.id) AS following_count,
+        COUNT(DISTINCT posts.id) AS post_count
+      FROM users
+      LEFT JOIN user_follows AS followers
+        ON followers.following_username = users.username COLLATE NOCASE
+      LEFT JOIN user_follows AS following
+        ON following.follower_username = users.username COLLATE NOCASE
+      LEFT JOIN posts
+        ON posts.username = users.username COLLATE NOCASE
+      WHERE users.username LIKE ? COLLATE NOCASE
+         OR users.bio LIKE ? COLLATE NOCASE
+      GROUP BY users.id
+      ORDER BY users.username COLLATE NOCASE
+      LIMIT 50
+      `,
+      [searchTerm, searchTerm]
+    );
+
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/users/:username/follow", async (req, res) => {
+  try {
+    const targetUser = await getUserByUsername(req.params.username);
+    const followerUsername = getProfileUsername(
+      req.body?.followerUsername || req.body?.follower_username
+    );
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    if (!followerUsername) {
+      return res.status(400).json({ error: "Follower username is required." });
+    }
+
+    const followerUser = await getUserByUsername(followerUsername);
+
+    if (!followerUser) {
+      return res.status(404).json({ error: "Follower account not found." });
+    }
+
+    if (followerUser.username.toLowerCase() === targetUser.username.toLowerCase()) {
+      return res.status(400).json({ error: "You cannot follow your own account." });
+    }
+
+    await runAsync(
+      `INSERT OR IGNORE INTO user_follows (follower_username, following_username)
+       VALUES (?, ?)`,
+      [followerUser.username, targetUser.username]
+    );
+
+    const counts = await getFollowCounts(targetUser.username);
+    res.json({ following: true, ...counts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/users/:username/follow", async (req, res) => {
+  try {
+    const targetUser = await getUserByUsername(req.params.username);
+    const followerUsername = getProfileUsername(
+      req.body?.followerUsername ||
+        req.body?.follower_username ||
+        req.query.followerUsername
+    );
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    if (!followerUsername) {
+      return res.status(400).json({ error: "Follower username is required." });
+    }
+
+    const followerUser = await getUserByUsername(followerUsername);
+
+    if (!followerUser) {
+      return res.status(404).json({ error: "Follower account not found." });
+    }
+
+    await runAsync(
+      `DELETE FROM user_follows
+       WHERE follower_username = ? COLLATE NOCASE
+         AND following_username = ? COLLATE NOCASE`,
+      [followerUser.username, targetUser.username]
+    );
+
+    const counts = await getFollowCounts(targetUser.username);
+    res.json({ following: false, ...counts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/follow-status", async (req, res) => {
+  try {
+    const targetUsername = getProfileUsername(req.params.username);
+    const viewerUsername = getProfileUsername(req.query.viewer);
+    const targetUser = await getUserByUsername(targetUsername);
+
+    if (!targetUser) {
+      return res.json({
+        userExists: false,
+        following: false,
+        followerCount: 0,
+        followingCount: 0,
+      });
+    }
+
+    const counts = await getFollowCounts(targetUser.username);
+    let following = false;
+
+    if (
+      viewerUsername &&
+      viewerUsername.toLowerCase() !== targetUser.username.toLowerCase()
+    ) {
+      const follow = await getAsync(
+        `SELECT id
+         FROM user_follows
+         WHERE follower_username = ? COLLATE NOCASE
+           AND following_username = ? COLLATE NOCASE`,
+        [viewerUsername, targetUser.username]
+      );
+      following = Boolean(follow);
+    }
+
+    res.json({
+      userExists: true,
+      username: targetUser.username,
+      profile: targetUser,
+      following,
+      ...counts,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/followers", async (req, res) => {
+  try {
+    const username = getProfileUsername(req.params.username);
+    const followers = await allAsync(
+      `
+      SELECT
+        users.id,
+        users.username,
+        users.avatar,
+        users.bio,
+        users.created_at,
+        user_follows.created_at AS followed_at,
+        COUNT(posts.id) AS post_count
+      FROM user_follows
+      JOIN users
+        ON users.username = user_follows.follower_username COLLATE NOCASE
+      LEFT JOIN posts
+        ON posts.username = users.username COLLATE NOCASE
+      WHERE user_follows.following_username = ? COLLATE NOCASE
+      GROUP BY user_follows.id, users.id
+      ORDER BY user_follows.created_at DESC
+      `,
+      [username]
+    );
+
+    res.json(followers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/following", async (req, res) => {
+  try {
+    const username = getProfileUsername(req.params.username);
+    const following = await allAsync(
+      `
+      SELECT
+        users.id,
+        users.username,
+        users.avatar,
+        users.bio,
+        users.created_at,
+        user_follows.created_at AS followed_at,
+        COUNT(posts.id) AS post_count
+      FROM user_follows
+      JOIN users
+        ON users.username = user_follows.following_username COLLATE NOCASE
+      LEFT JOIN posts
+        ON posts.username = users.username COLLATE NOCASE
+      WHERE user_follows.follower_username = ? COLLATE NOCASE
+      GROUP BY user_follows.id, users.id
+      ORDER BY user_follows.created_at DESC
+      `,
+      [username]
+    );
+
+    res.json(following);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/posts", async (req, res) => {
+  try {
+    const username = getProfileUsername(req.params.username);
+    const viewer = getForumUsername(req.query.viewer);
+    const rows = await allAsync(
+      `
+      SELECT
+        posts.*,
+        COUNT(comments.id) AS comment_count,
+        COALESCE(current_vote.vote_type, 'none') AS vote_state
+      FROM posts
+      LEFT JOIN comments
+        ON comments.post_id = posts.id
+      LEFT JOIN post_votes AS current_vote
+        ON current_vote.post_id = posts.id
+        AND current_vote.username = ? COLLATE NOCASE
+      WHERE posts.username = ? COLLATE NOCASE
+      GROUP BY posts.id
+      ORDER BY posts.created_at DESC
+      `,
+      [viewer, username]
+    );
+
+    res.json(normalizeProfilePosts(rows));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/comments", async (req, res) => {
+  try {
+    const username = getProfileUsername(req.params.username);
+    const comments = await allAsync(
+      `
+      SELECT
+        comments.id,
+        comments.post_id,
+        comments.username,
+        comments.content,
+        comments.likes,
+        comments.created_at,
+        posts.title AS post_title,
+        posts.username AS post_username
+      FROM comments
+      JOIN posts
+        ON posts.id = comments.post_id
+      WHERE comments.username = ? COLLATE NOCASE
+      ORDER BY comments.created_at DESC
+      `,
+      [username]
+    );
+
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/saved", async (req, res) => {
+  if (!requireOwnProfile(req, res)) return;
+
+  try {
+    const username = getProfileUsername(req.params.username);
+    const rows = await allAsync(
+      `
+      SELECT
+        posts.*,
+        saved_posts.created_at AS activity_created_at,
+        COUNT(comments.id) AS comment_count,
+        COALESCE(current_vote.vote_type, 'none') AS vote_state
+      FROM saved_posts
+      JOIN posts
+        ON posts.id = saved_posts.post_id
+      LEFT JOIN comments
+        ON comments.post_id = posts.id
+      LEFT JOIN post_votes AS current_vote
+        ON current_vote.post_id = posts.id
+        AND current_vote.username = ? COLLATE NOCASE
+      WHERE saved_posts.username = ? COLLATE NOCASE
+      GROUP BY posts.id
+      ORDER BY saved_posts.created_at DESC
+      `,
+      [username, username]
+    );
+
+    res.json(normalizeProfilePosts(rows));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/upvoted", async (req, res) => {
+  if (!requireOwnProfile(req, res)) return;
+
+  try {
+    const username = getProfileUsername(req.params.username);
+    const rows = await allAsync(
+      `
+      SELECT
+        posts.*,
+        profile_vote.created_at AS activity_created_at,
+        COUNT(comments.id) AS comment_count,
+        profile_vote.vote_type AS vote_state
+      FROM post_votes AS profile_vote
+      JOIN posts
+        ON posts.id = profile_vote.post_id
+      LEFT JOIN comments
+        ON comments.post_id = posts.id
+      WHERE profile_vote.username = ? COLLATE NOCASE
+        AND profile_vote.vote_type = 'up'
+      GROUP BY posts.id
+      ORDER BY profile_vote.created_at DESC
+      `,
+      [username]
+    );
+
+    res.json(normalizeProfilePosts(rows));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/downvoted", async (req, res) => {
+  if (!requireOwnProfile(req, res)) return;
+
+  try {
+    const username = getProfileUsername(req.params.username);
+    const rows = await allAsync(
+      `
+      SELECT
+        posts.*,
+        profile_vote.created_at AS activity_created_at,
+        COUNT(comments.id) AS comment_count,
+        profile_vote.vote_type AS vote_state
+      FROM post_votes AS profile_vote
+      JOIN posts
+        ON posts.id = profile_vote.post_id
+      LEFT JOIN comments
+        ON comments.post_id = posts.id
+      WHERE profile_vote.username = ? COLLATE NOCASE
+        AND profile_vote.vote_type = 'down'
+      GROUP BY posts.id
+      ORDER BY profile_vote.created_at DESC
+      `,
+      [username]
+    );
+
+    res.json(normalizeProfilePosts(rows));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/users/:username/history", async (req, res) => {
+  if (!requireOwnProfile(req, res)) return;
+
+  try {
+    const username = getProfileUsername(req.params.username);
+    const activity = await allAsync(
+      `
+      SELECT
+        'post' AS activity_type,
+        posts.id AS activity_id,
+        posts.id AS post_id,
+        posts.title AS post_title,
+        posts.content AS content,
+        posts.created_at AS created_at
+      FROM posts
+      WHERE posts.username = ? COLLATE NOCASE
+
+      UNION ALL
+
+      SELECT
+        'comment' AS activity_type,
+        comments.id AS activity_id,
+        comments.post_id AS post_id,
+        posts.title AS post_title,
+        comments.content AS content,
+        comments.created_at AS created_at
+      FROM comments
+      JOIN posts
+        ON posts.id = comments.post_id
+      WHERE comments.username = ? COLLATE NOCASE
+
+      UNION ALL
+
+      SELECT
+        'save' AS activity_type,
+        saved_posts.id AS activity_id,
+        saved_posts.post_id AS post_id,
+        posts.title AS post_title,
+        '' AS content,
+        saved_posts.created_at AS created_at
+      FROM saved_posts
+      JOIN posts
+        ON posts.id = saved_posts.post_id
+      WHERE saved_posts.username = ? COLLATE NOCASE
+
+      UNION ALL
+
+      SELECT
+        CASE post_votes.vote_type
+          WHEN 'up' THEN 'upvote'
+          ELSE 'downvote'
+        END AS activity_type,
+        post_votes.id AS activity_id,
+        post_votes.post_id AS post_id,
+        posts.title AS post_title,
+        '' AS content,
+        post_votes.created_at AS created_at
+      FROM post_votes
+      JOIN posts
+        ON posts.id = post_votes.post_id
+      WHERE post_votes.username = ? COLLATE NOCASE
+
+      ORDER BY created_at DESC
+      LIMIT 100
+      `,
+      [username, username, username, username]
+    );
+
+    res.json(activity);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/users/:id", (req, res) => {
   const { id } = req.params;
 
@@ -1595,7 +2329,28 @@ app.get("/api/users/:id", (req, res) => {
 });
 app.put("/api/users/:id", (req, res) => {
   const { id } = req.params;
-  const { username, bio, avatar } = req.body;
+  const { username, bio, avatar, banner_color, banner_image } = req.body;
+
+  if (
+    banner_color !== undefined &&
+    banner_color !== "" &&
+    !/^#[0-9a-f]{6}$/i.test(banner_color)
+  ) {
+    return res.status(400).json({ error: "Banner color must be a valid hex color." });
+  }
+
+  if (
+    banner_image !== undefined &&
+    banner_image !== "" &&
+    !/^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(banner_image) &&
+    !/^https:\/\//i.test(banner_image)
+  ) {
+    return res.status(400).json({ error: "Banner image must be a valid image." });
+  }
+
+  if (typeof banner_image === "string" && banner_image.length > 1600000) {
+    return res.status(413).json({ error: "Banner image is too large." });
+  }
 
   db.get("SELECT * FROM users WHERE id = ?", [id], (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -1616,25 +2371,76 @@ app.put("/api/users/:id", (req, res) => {
       updateUser();
     }
 
-    function updateUser() {
+    async function updateUser() {
       const newUsername = username !== undefined ? username : user.username;
       const newBio = bio !== undefined ? bio : user.bio;
       const newAvatar = avatar !== undefined ? avatar : user.avatar;
+      const newBannerColor =
+        banner_color !== undefined ? banner_color : user.banner_color || "";
+      const newBannerImage =
+        banner_image !== undefined ? banner_image : user.banner_image || "";
+      const usernameChanged = newUsername !== user.username;
 
-      db.run(
-        "UPDATE users SET username = ?, bio = ?, avatar = ? WHERE id = ?",
-        [newUsername, newBio, newAvatar, id],
-        function (err) {
-          if (err) return res.status(500).json({ error: err.message });
+      try {
+        await runAsync("BEGIN IMMEDIATE TRANSACTION");
+        await runAsync(
+          `UPDATE users
+           SET username = ?, bio = ?, avatar = ?, banner_color = ?, banner_image = ?
+           WHERE id = ?`,
+          [
+            newUsername,
+            newBio,
+            newAvatar,
+            newBannerColor,
+            newBannerImage,
+            id,
+          ]
+        );
 
-          db.get("SELECT * FROM users WHERE id = ?", [id], (err, updatedUser) => {
-            if (err) return res.status(500).json({ error: err.message });
-            
-            const { password, ...userWithoutPassword } = updatedUser;
-            res.json(userWithoutPassword);
-          });
+        if (usernameChanged) {
+          await runAsync("UPDATE posts SET username = ? WHERE username = ?", [
+            newUsername,
+            user.username,
+          ]);
+          await runAsync("UPDATE comments SET username = ? WHERE username = ?", [
+            newUsername,
+            user.username,
+          ]);
+          await runAsync("UPDATE saved_posts SET username = ? WHERE username = ?", [
+            newUsername,
+            user.username,
+          ]);
+          await runAsync("UPDATE post_votes SET username = ? WHERE username = ?", [
+            newUsername,
+            user.username,
+          ]);
+          await runAsync("UPDATE comment_votes SET username = ? WHERE username = ?", [
+            newUsername,
+            user.username,
+          ]);
+          await runAsync(
+            "UPDATE user_follows SET follower_username = ? WHERE follower_username = ?",
+            [newUsername, user.username]
+          );
+          await runAsync(
+            "UPDATE user_follows SET following_username = ? WHERE following_username = ?",
+            [newUsername, user.username]
+          );
         }
-      );
+
+        await runAsync("COMMIT");
+        const updatedUser = await getAsync("SELECT * FROM users WHERE id = ?", [id]);
+        const { password, ...userWithoutPassword } = updatedUser;
+        res.json(userWithoutPassword);
+      } catch (error) {
+        try {
+          await runAsync("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Could not roll back profile update:", rollbackError.message);
+        }
+
+        res.status(500).json({ error: error.message });
+      }
     }
   });
 });
@@ -1655,6 +2461,12 @@ app.delete("/api/users/:id", (req, res) => {
       // Keep old posts/comments but mark them as deleted user
       db.run("UPDATE posts SET username = ? WHERE username = ?", ["Deleted User", user.username]);
       db.run("UPDATE comments SET username = ? WHERE username = ?", ["Deleted User", user.username]);
+      db.run(
+        `DELETE FROM user_follows
+         WHERE follower_username = ? COLLATE NOCASE
+            OR following_username = ? COLLATE NOCASE`,
+        [user.username, user.username]
+      );
 
       db.run("DELETE FROM users WHERE id = ?", [id], function (err) {
         if (err) {
@@ -1793,6 +2605,14 @@ app.get("/api/community/active-users", async (req, res) => {
     res.status(500).json({ error: "Could not load active users." });
   }
 });
-app.listen(PORT, () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
-});
+Promise.all([savedPostsReady, userFollowsReady])
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Backend running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to initialize saved posts:", error.message);
+    db.close();
+    process.exitCode = 1;
+  });
