@@ -12,7 +12,7 @@ Time spent: **???** hours spent in total
 The following **required** functionality is completed:
 
 
-- [ ] **Web app includes a create form that allows the user to create posts**
+- [X] **Web app includes a create form that allows the user to create posts**
   - Form requires users to add a post title
   - Forms should have the *option* for users to add: 
     - additional textual content
@@ -24,12 +24,12 @@ The following **required** functionality is completed:
     - title 
     - upvotes count
   - Clicking on a post should direct the user to a new page for the selected post
-- [ ] **Users can view posts in different ways**
+- [X] **Users can view posts in different ways**
   - Users can sort posts by either:
     -  creation time
     -  upvotes count
   - Users can search for posts by title
-- [ ] **Users can interact with each post in different ways**
+- [X] **Users can interact with each post in different ways**
   - The app includes a separate post page for each created post when clicked, where any additional information is shown, including:
     - content
     - image
@@ -39,7 +39,7 @@ The following **required** functionality is completed:
     - Each click increases the post's upvotes count by one
     - Users can upvote any post any number of times
 
-- [ ] **A post that a user previously created can be edited or deleted from its post pages**
+- [X] **A post that a user previously created can be edited or deleted from its post pages**
   - After a user creates a new post, they can go back and edit the post
   - A previously created post can be deleted from its post page
 
